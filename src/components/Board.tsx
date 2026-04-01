@@ -117,8 +117,8 @@ export default function Board() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex-1 flex gap-5 overflow-x-auto p-6 pb-4">
-        {columns.map((column) => (
-          <KanbanColumn key={column.id} column={column} />
+        {columns.map((column, index) => (
+          <KanbanColumn key={column.id} column={column} index={index} />
         ))}
       </div>
 

@@ -9,18 +9,19 @@ import type { Column } from "@/types/board";
 import KanbanCard from "./KanbanCard";
 import AddCardForm from "./AddCardForm";
 
-const columnAccents: Record<string, string> = {
-  "col-todo": "bg-blue-500",
-  "col-progress": "bg-amber-500",
-  "col-review": "bg-violet-500",
-  "col-done": "bg-emerald-500",
-};
+const accentColors = [
+  "bg-blue-500",
+  "bg-amber-500",
+  "bg-violet-500",
+  "bg-emerald-500",
+];
 
 interface KanbanColumnProps {
   column: Column;
+  index?: number;
 }
 
-export default function KanbanColumn({ column }: KanbanColumnProps) {
+export default function KanbanColumn({ column, index = 0 }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({
     id: column.id,
     data: { type: "column", column },
@@ -34,7 +35,7 @@ export default function KanbanColumn({ column }: KanbanColumnProps) {
       <div className="flex items-center gap-2.5 px-1 mb-3">
         <span
           className={`w-2.5 h-2.5 rounded-full ${
-            columnAccents[column.id] || "bg-gray-500"
+            accentColors[index % accentColors.length]
           }`}
         />
         <h2 className="text-[13px] font-semibold text-gray-200 tracking-tight">
