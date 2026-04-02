@@ -2,11 +2,18 @@ import { connectDB } from "@/lib/mongodb";
 import { Board } from "@/models/Board";
 import { Column } from "@/models/Column";
 import { Card } from "@/models/Card";
+import type { GraphQLContext } from "@/app/api/graphql/route";
 
 export const resolvers = {
   Query: {
-    boards: async () => {
+    boards: async (_: unknown, __: unknown, ctx: GraphQLContext) => {
       await connectDB();
+      // Kullanıcının üyesi olduğu veya owner olduğu board'lar
+      if (ctx.userId) {
+        return Board.find({
+          $or: [{ ownerId: ctx.userId }, { memberIds: ctx.userId }],
+        }).lean();
+      }
       return Board.find().lean();
     },
 
@@ -48,14 +55,13 @@ export const resolvers = {
   },
 
   Mutation: {
-    createBoard: async (_: unknown, { name }: { name: string }) => {
+    createBoard: async (_: unknown, { name }: { name: string }, ctx: GraphQLContext) => {
       await connectDB();
 
       const board = await Board.create({
         name,
-        // Phase 3'te gerçek user ID gelecek
-        ownerId: "000000000000000000000000",
-        memberIds: [],
+        ownerId: ctx.userId || "000000000000000000000000",
+        memberIds: ctx.userId ? [ctx.userId] : [],
         columnIds: [],
       });
 

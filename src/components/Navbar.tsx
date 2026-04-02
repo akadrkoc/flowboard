@@ -1,13 +1,8 @@
 "use client";
 
 import { useBoardStore } from "@/store/boardStore";
-import { LayoutGrid, Moon, Sun, Kanban, BarChart3, ListChecks } from "lucide-react";
-
-const onlineUsers = [
-  { initials: "AK", color: "bg-violet-500" },
-  { initials: "RJ", color: "bg-sky-500" },
-  { initials: "ML", color: "bg-emerald-500" },
-];
+import { useSession, signOut } from "next-auth/react";
+import { LayoutGrid, Moon, Sun, Kanban, BarChart3, ListChecks, LogOut } from "lucide-react";
 
 const views = [
   { id: "kanban" as const, label: "Kanban", icon: Kanban },
@@ -20,6 +15,17 @@ export default function Navbar() {
   const toggleDarkMode = useBoardStore((s) => s.toggleDarkMode);
   const activeView = useBoardStore((s) => s.activeView);
   const setActiveView = useBoardStore((s) => s.setActiveView);
+  const { data: session } = useSession();
+
+  const user = session?.user;
+  const initials = user?.name
+    ? user.name
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2)
+    : "?";
 
   return (
     <nav className="flex items-center justify-between h-14 px-5 border-b border-white/[0.06] bg-[#12121a]/80 backdrop-blur-md">
@@ -54,22 +60,30 @@ export default function Navbar() {
         ))}
       </div>
 
-      {/* Right: Presence + Theme toggle */}
+      {/* Right: User + Theme toggle */}
       <div className="flex items-center gap-3">
-        {/* Online presence avatars */}
-        <div className="flex items-center -space-x-2">
-          {onlineUsers.map((user) => (
-            <div
-              key={user.initials}
-              className={`w-7 h-7 rounded-full ${user.color} flex items-center justify-center ring-2 ring-[#12121a]`}
-              title={user.initials}
-            >
-              <span className="text-[10px] font-bold text-white">
-                {user.initials}
-              </span>
-            </div>
-          ))}
-        </div>
+        {/* User avatar & info */}
+        {user && (
+          <div className="flex items-center gap-2.5">
+            {user.image ? (
+              <img
+                src={user.image}
+                alt={user.name || "User"}
+                className="w-7 h-7 rounded-full ring-2 ring-[#12121a]"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-violet-500 flex items-center justify-center ring-2 ring-[#12121a]">
+                <span className="text-[10px] font-bold text-white">
+                  {initials}
+                </span>
+              </div>
+            )}
+            <span className="hidden sm:block text-[12px] font-medium text-gray-300 max-w-[120px] truncate">
+              {user.name}
+            </span>
+          </div>
+        )}
 
         <div className="w-px h-5 bg-white/[0.08]" />
 
@@ -85,6 +99,17 @@ export default function Navbar() {
             <Moon className="w-4 h-4" />
           )}
         </button>
+
+        {/* Logout */}
+        {user && (
+          <button
+            onClick={() => signOut({ callbackUrl: "/login" })}
+            className="p-1.5 rounded-md hover:bg-white/[0.05] text-gray-400 hover:text-gray-200 transition-colors"
+            title="Sign out"
+          >
+            <LogOut className="w-4 h-4" />
+          </button>
+        )}
       </div>
     </nav>
   );

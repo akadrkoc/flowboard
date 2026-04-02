@@ -11,7 +11,7 @@ Collaborative Kanban task management application.
 - **API:** Apollo Server (GraphQL) + graphqlFetch (lightweight client)
 - **Database:** MongoDB Atlas + Mongoose
 - **Real-time:** Socket.io (custom server)
-- **Auth:** NextAuth.js (Google + GitHub OAuth) — Phase 3
+- **Auth:** NextAuth.js v4 (Google + GitHub OAuth, JWT session)
 - **Charts:** Recharts — Phase 4
 
 ## Project Structure
@@ -22,27 +22,31 @@ tsconfig.server.json      # TypeScript config for server.ts
 src/
   app/
     page.tsx              # Ana sayfa - Board render + init
-    layout.tsx            # Root layout (dark mode, font)
+    login/page.tsx        # Login sayfasi (GitHub + Google OAuth)
+    layout.tsx            # Root layout (SessionWrapper, font)
     globals.css           # Global stiller
     api/
-      graphql/route.ts    # Apollo Server GraphQL endpoint
+      graphql/route.ts    # Apollo Server GraphQL endpoint (auth context)
+      auth/[...nextauth]/ # NextAuth.js API route
       test-db/route.ts    # MongoDB baglanti testi
   components/
     Board.tsx             # DndContext + kolon layout
     KanbanColumn.tsx      # Tekil kolon (SortableContext)
     KanbanCard.tsx        # Tekil kart (useSortable)
     AddCardForm.tsx       # Yeni kart ekleme dialog
-    Navbar.tsx            # Ust navigasyon
+    Navbar.tsx            # Ust navigasyon (user avatar, logout)
     StatsBar.tsx          # Alt istatistik bari
+    SessionWrapper.tsx    # NextAuth SessionProvider wrapper
     ui/                   # shadcn/ui primitives
   graphql/
     typeDefs.ts           # GraphQL schema
-    resolvers.ts          # GraphQL resolvers
-    operations.ts         # Client-side query/mutation strings (Apollo)
+    resolvers.ts          # GraphQL resolvers (auth context destekli)
+    operations.ts         # Client-side query/mutation strings
   lib/
     mongodb.ts            # Mongoose connection helper (cached)
     graphqlFetch.ts       # Lightweight GraphQL client (fetch-based)
     socket.ts             # Socket.io client singleton
+    auth.ts               # NextAuth config (providers, callbacks)
   models/
     Board.ts              # Mongoose Board model
     Column.ts             # Mongoose Column model
@@ -52,6 +56,7 @@ src/
     boardStore.ts         # Zustand store (API + Socket.io entegreli)
   types/
     board.ts              # Card, Column, Priority tipleri
+  middleware.ts           # NextAuth middleware (route korumasi)
   data/
     mockData.ts           # Ornek veriler (Phase 1 legacy)
 ```
@@ -68,7 +73,13 @@ npm run lint     # ESLint
 ## Environment Variables
 
 ```
-MONGODB_URI=mongodb+srv://...   # .env.local dosyasinda
+MONGODB_URI=mongodb+srv://...
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=...
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
 ```
 
 ---
@@ -116,21 +127,23 @@ MONGODB_URI=mongodb+srv://...   # .env.local dosyasinda
 
 ---
 
-### PHASE 3 - Authentication (NextAuth.js) [SIRADA]
+### PHASE 3 - Authentication (NextAuth.js) [TAMAMLANDI]
 
-- [ ] NextAuth.js kurulumu
-- [ ] Google OAuth provider konfigurasyonu
-- [ ] GitHub OAuth provider konfigurasyonu
-- [ ] MongoDB session storage (MongoDBAdapter)
-- [ ] Board route'larini koruma: auth olmadan /login'e redirect
-- [ ] /login sayfasi tasarimi
-- [ ] Navbar'da giris yapmis kullanicinin avatarini goster
-- [ ] Board uyelik sistemi (owner, member rolleri)
-- [ ] API route'larinda auth kontrolu (GraphQL context)
+- [x] NextAuth.js v4 kurulumu (JWT session strategy)
+- [x] GitHub OAuth provider
+- [x] Google OAuth provider
+- [x] Kullanici otomatik olusturma (signIn callback ile MongoDB'ye kayit)
+- [x] Middleware ile route korumasi (auth olmadan /login'e redirect)
+- [x] /login sayfasi (dark theme, GitHub + Google butonlari)
+- [x] SessionProvider wrapper (layout.tsx)
+- [x] Navbar: kullanici avatari, isim, logout butonu
+- [x] GraphQL context'e userId ekleme
+- [x] createBoard'da gercek ownerId
+- [x] boards query'de kullaniciya ozel filtreleme
 
 ---
 
-### PHASE 4 - Analytics Sayfasi [BEKLEMEDE]
+### PHASE 4 - Analytics Sayfasi [SIRADA]
 
 Route: `/board/[id]/analytics`
 
@@ -156,3 +169,4 @@ Recharts ile:
 - Import alias: `@/` -> `src/`
 - GraphQL: Apollo Server (backend), graphqlFetch (frontend - lightweight)
 - Real-time: Socket.io event-based (join-board, card-moved, card-created, card-updated, card-deleted)
+- Auth: NextAuth.js v4, JWT session, middleware route korumasi
