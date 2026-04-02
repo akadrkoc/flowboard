@@ -21,6 +21,8 @@ export const typeDefs = `#graphql
     columnId: ID!
     boardId: ID!
     order: Int!
+    completedAt: String
+    createdAt: String
   }
 
   type Column {

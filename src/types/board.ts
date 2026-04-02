@@ -11,6 +11,8 @@ export type Card = {
   assigneeColor: string;
   columnId: string;
   order: number;
+  completedAt?: string;
+  createdAt?: string;
 };
 
 export type Column = {

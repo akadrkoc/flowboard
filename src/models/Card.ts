@@ -13,6 +13,7 @@ export interface ICard extends Document {
   columnId: Types.ObjectId;
   boardId: Types.ObjectId;
   order: number;
+  completedAt?: Date;
 }
 
 const CardSchema = new Schema<ICard>(
@@ -33,6 +34,7 @@ const CardSchema = new Schema<ICard>(
     columnId: { type: Schema.Types.ObjectId, ref: "Column", required: true },
     boardId: { type: Schema.Types.ObjectId, ref: "Board", required: true },
     order: { type: Number, required: true, default: 0 },
+    completedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
