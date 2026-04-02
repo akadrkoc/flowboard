@@ -1,17 +1,19 @@
 "use client";
 
+import { useState, useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Card as CardType } from "@/types/board";
 import { Calendar, Flame } from "lucide-react";
+import CardDetailModal from "@/components/CardDetailModal";
 
 const labelColors: Record<string, string> = {
-  Frontend: "bg-violet-500/20 text-violet-300",
-  Backend: "bg-teal-500/20 text-teal-300",
-  Auth: "bg-red-500/20 text-red-300",
-  Design: "bg-amber-500/20 text-amber-300",
-  DevOps: "bg-blue-500/20 text-blue-300",
-  Docs: "bg-slate-500/20 text-slate-300",
+  Frontend: "bg-violet-500/20 text-violet-600 dark:text-violet-300",
+  Backend: "bg-teal-500/20 text-teal-600 dark:text-teal-300",
+  Auth: "bg-red-500/20 text-red-600 dark:text-red-300",
+  Design: "bg-amber-500/20 text-amber-600 dark:text-amber-300",
+  DevOps: "bg-blue-500/20 text-blue-600 dark:text-blue-300",
+  Docs: "bg-slate-500/20 text-slate-600 dark:text-slate-300",
 };
 
 const priorityColors: Record<string, string> = {
@@ -26,6 +28,9 @@ interface KanbanCardProps {
 }
 
 export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps) {
+  const [modalOpen, setModalOpen] = useState(false);
+  const didDrag = useRef(false);
+
   const {
     attributes,
     listeners,
@@ -45,71 +50,101 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
     scale: isDraggingOverlay ? "1.03" : "1",
   };
 
+  const handlePointerDown = () => {
+    didDrag.current = false;
+  };
+
+  const handlePointerMove = () => {
+    didDrag.current = true;
+  };
+
+  const handleClick = () => {
+    if (!isDragging && !didDrag.current && !isDraggingOverlay) {
+      setModalOpen(true);
+    }
+  };
+
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={`
-        group relative rounded-lg border border-white/[0.06] bg-[#1e1e2e] p-3.5
-        shadow-sm hover:shadow-md hover:border-white/[0.12]
-        transition-all duration-150 cursor-grab active:cursor-grabbing
-        ${isDraggingOverlay ? "shadow-xl shadow-black/30 ring-1 ring-white/10" : ""}
-        ${isDragging ? "opacity-40" : ""}
-      `}
-    >
-      {/* Labels */}
-      <div className="flex flex-wrap gap-1.5 mb-2.5">
-        {card.labels.map((label) => (
-          <span
-            key={label}
-            className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
-              labelColors[label] || "bg-gray-500/20 text-gray-300"
-            }`}
+    <>
+      <div
+        ref={setNodeRef}
+        style={style}
+        {...attributes}
+        {...listeners}
+        onPointerDown={(e) => {
+          handlePointerDown();
+          listeners?.onPointerDown?.(e);
+        }}
+        onPointerMove={handlePointerMove}
+        onClick={handleClick}
+        className={`
+          group relative rounded-lg border border-gray-200 dark:border-white/[0.06] bg-white dark:bg-[#1e1e2e] p-3.5
+          shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-white/[0.12]
+          transition-all duration-150 cursor-grab active:cursor-grabbing
+          ${isDraggingOverlay ? "shadow-xl shadow-black/20 dark:shadow-black/30 ring-1 ring-gray-300 dark:ring-white/10" : ""}
+          ${isDragging ? "opacity-40" : ""}
+        `}
+      >
+        {/* Labels */}
+        <div className="flex flex-wrap gap-1.5 mb-2.5">
+          {card.labels.map((label) => (
+            <span
+              key={label}
+              className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                labelColors[label] || "bg-gray-500/20 text-gray-600 dark:text-gray-300"
+              }`}
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+
+        {/* Title */}
+        <p className="text-[13px] font-medium text-gray-800 dark:text-gray-100 leading-snug mb-3">
+          {card.title}
+        </p>
+
+        {/* Bottom row */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            {/* Priority dot */}
+            <span
+              className={`w-2 h-2 rounded-full ${priorityColors[card.priority]}`}
+              title={`Priority: ${card.priority}`}
+            />
+
+            {/* Due date */}
+            {card.dueDate && (
+              <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
+                <Calendar className="w-3 h-3" />
+                {card.dueDate}
+              </span>
+            )}
+
+            {/* Story points */}
+            <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] px-1.5 py-0.5 rounded">
+              <Flame className="w-3 h-3" />
+              {card.storyPoints}
+            </span>
+          </div>
+
+          {/* Assignee avatar */}
+          <div
+            className={`w-6 h-6 rounded-full ${card.assigneeColor} flex items-center justify-center`}
+            title={card.assigneeInitials}
           >
-            {label}
-          </span>
-        ))}
-      </div>
-
-      {/* Title */}
-      <p className="text-[13px] font-medium text-gray-100 leading-snug mb-3">
-        {card.title}
-      </p>
-
-      {/* Bottom row */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          {/* Priority dot */}
-          <span
-            className={`w-2 h-2 rounded-full ${priorityColors[card.priority]}`}
-            title={`Priority: ${card.priority}`}
-          />
-
-          {/* Due date */}
-          <span className="flex items-center gap-1 text-[11px] text-gray-400">
-            <Calendar className="w-3 h-3" />
-            {card.dueDate}
-          </span>
-
-          {/* Story points */}
-          <span className="flex items-center gap-1 text-[11px] text-gray-400 bg-white/[0.05] px-1.5 py-0.5 rounded">
-            <Flame className="w-3 h-3" />
-            {card.storyPoints}
-          </span>
-        </div>
-
-        {/* Assignee avatar */}
-        <div
-          className={`w-6 h-6 rounded-full ${card.assigneeColor} flex items-center justify-center`}
-          title={card.assigneeInitials}
-        >
-          <span className="text-[10px] font-bold text-white">
-            {card.assigneeInitials}
-          </span>
+            <span className="text-[10px] font-bold text-white">
+              {card.assigneeInitials}
+            </span>
+          </div>
         </div>
       </div>
-    </div>
+
+      <CardDetailModal
+        card={card}
+        open={modalOpen}
+        onOpenChange={setModalOpen}
+      />
+    </>
   );
 }

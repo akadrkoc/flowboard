@@ -38,10 +38,10 @@ export default function KanbanColumn({ column, index = 0 }: KanbanColumnProps) {
             accentColors[index % accentColors.length]
           }`}
         />
-        <h2 className="text-[13px] font-semibold text-gray-200 tracking-tight">
+        <h2 className="text-[13px] font-semibold text-gray-700 dark:text-gray-200 tracking-tight">
           {column.title}
         </h2>
-        <span className="ml-auto text-[11px] font-medium text-gray-500 bg-white/[0.05] px-2 py-0.5 rounded-full">
+        <span className="ml-auto text-[11px] font-medium text-gray-500 bg-gray-100 dark:bg-white/[0.05] px-2 py-0.5 rounded-full">
           {column.cards.length}
         </span>
       </div>
@@ -50,7 +50,7 @@ export default function KanbanColumn({ column, index = 0 }: KanbanColumnProps) {
       <div
         ref={setNodeRef}
         className={`flex-1 overflow-y-auto space-y-2 p-1.5 rounded-xl transition-colors duration-200 ${
-          isOver ? "bg-white/[0.03] ring-1 ring-white/[0.06]" : ""
+          isOver ? "bg-gray-100 dark:bg-white/[0.03] ring-1 ring-gray-200 dark:ring-white/[0.06]" : ""
         }`}
         style={{ minHeight: "100px" }}
       >

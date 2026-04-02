@@ -135,7 +135,7 @@ export default function Board() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex-1 flex gap-5 overflow-x-auto p-6 pb-4">
+      <div className="flex-1 flex justify-center gap-5 overflow-x-auto p-6 pb-4">
         {columns.map((column, index) => (
           <KanbanColumn key={column.id} column={column} index={index} />
         ))}
