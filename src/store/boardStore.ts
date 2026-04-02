@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Card, Column } from "@/types/board";
 import { graphqlFetch } from "@/lib/graphqlFetch";
+import { getSocket } from "@/lib/socket";
 
 interface BoardState {
   boardId: string | null;
@@ -9,6 +10,7 @@ interface BoardState {
   darkMode: boolean;
   activeView: "kanban" | "scrum" | "analytics";
   loadBoard: (boardId: string) => Promise<void>;
+  initSocket: () => void;
   moveCard: (cardId: string, toColumnId: string, newIndex: number) => void;
   addCard: (
     columnId: string,
@@ -141,6 +143,82 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
+  initSocket: () => {
+    const { boardId } = get();
+    if (!boardId) return;
+
+    const socket = getSocket();
+    socket.emit("join-board", boardId);
+
+    // Diğer client'lardan gelen event'leri dinle
+    socket.on("card-moved", (data: { cardId: string; toColumnId: string; newIndex: number }) => {
+      set((state) => {
+        const columns = state.columns.map((col) => ({
+          ...col,
+          cards: [...col.cards],
+        }));
+
+        let movedCard: Card | undefined;
+        for (const col of columns) {
+          const idx = col.cards.findIndex((c) => c.id === data.cardId);
+          if (idx !== -1) {
+            movedCard = { ...col.cards[idx] };
+            col.cards.splice(idx, 1);
+            break;
+          }
+        }
+
+        if (!movedCard) return state;
+
+        const targetCol = columns.find((c) => c.id === data.toColumnId);
+        if (!targetCol) return state;
+
+        movedCard.columnId = data.toColumnId;
+        const clampedIndex = Math.min(data.newIndex, targetCol.cards.length);
+        targetCol.cards.splice(clampedIndex, 0, movedCard);
+
+        for (const col of columns) {
+          col.cards.forEach((card, i) => {
+            card.order = i;
+          });
+        }
+
+        return { columns };
+      });
+    });
+
+    socket.on("card-created", (data: { card: Card }) => {
+      set((state) => ({
+        columns: state.columns.map((col) => {
+          if (col.id !== data.card.columnId) return col;
+          // Kart zaten varsa ekleme
+          if (col.cards.some((c) => c.id === data.card.id)) return col;
+          return { ...col, cards: [...col.cards, data.card] };
+        }),
+      }));
+    });
+
+    socket.on("card-updated", (data: { cardId: string; updates: Partial<Card> }) => {
+      set((state) => ({
+        columns: state.columns.map((col) => ({
+          ...col,
+          cards: col.cards.map((card) =>
+            card.id === data.cardId ? { ...card, ...data.updates } : card
+          ),
+        })),
+      }));
+    });
+
+    socket.on("card-deleted", (data: { cardId: string }) => {
+      set((state) => ({
+        columns: state.columns.map((col) => ({
+          ...col,
+          cards: col.cards.filter((c) => c.id !== data.cardId),
+        })),
+      }));
+    });
+  },
+
   moveCard: (cardId, toColumnId, newIndex) => {
     // Optimistic update: UI anında güncellenir
     set((state) => {
@@ -177,12 +255,13 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       return { columns };
     });
 
-    // Arka planda API'ye sync et
+    // Arka planda API'ye sync et + diğer client'lara bildir
     const { boardId } = get();
     if (boardId) {
       graphqlFetch(MOVE_CARD_MUTATION, { cardId, toColumnId, newIndex }).catch(
         (err: unknown) => console.error("Failed to sync moveCard:", err)
       );
+      getSocket().emit("card-moved", { boardId, cardId, toColumnId, newIndex });
     }
   },
 
@@ -219,6 +298,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((data: any) => {
+        const createdCard = data.createCard;
         set((state) => ({
           columns: state.columns.map((col) => ({
             ...col,
@@ -226,13 +306,21 @@ export const useBoardStore = create<BoardState>((set, get) => ({
               c.id === tempId
                 ? {
                     ...c,
-                    id: data.createCard.id,
-                    order: data.createCard.order,
+                    id: createdCard.id,
+                    order: createdCard.order,
                   }
                 : c
             ),
           })),
         }));
+        // Diğer client'lara bildir
+        const { boardId } = get();
+        if (boardId) {
+          getSocket().emit("card-created", {
+            boardId,
+            card: { ...cardData, id: createdCard.id, columnId, order: createdCard.order },
+          });
+        }
       })
       .catch((err: unknown) => {
         console.error("Failed to create card:", err);
@@ -257,7 +345,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       })),
     }));
 
-    // API'ye sync
+    // API'ye sync + diğer client'lara bildir
     if (!cardId.startsWith("temp-")) {
       graphqlFetch(UPDATE_CARD_MUTATION, {
         cardId,
@@ -273,6 +361,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }).catch((err: unknown) =>
         console.error("Failed to update card:", err)
       );
+      const { boardId } = get();
+      if (boardId) {
+        getSocket().emit("card-updated", { boardId, cardId, updates });
+      }
     }
   },
 
@@ -285,11 +377,15 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       })),
     }));
 
-    // API'ye sync
+    // API'ye sync + diğer client'lara bildir
     if (!cardId.startsWith("temp-")) {
       graphqlFetch(DELETE_CARD_MUTATION, { cardId }).catch((err: unknown) =>
         console.error("Failed to delete card:", err)
       );
+      const { boardId } = get();
+      if (boardId) {
+        getSocket().emit("card-deleted", { boardId, cardId });
+      }
     }
   },
 

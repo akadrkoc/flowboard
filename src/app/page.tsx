@@ -12,6 +12,7 @@ const CREATE_BOARD_MUTATION = `mutation CreateBoard($name: String!) { createBoar
 
 export default function Home() {
   const loadBoard = useBoardStore((s) => s.loadBoard);
+  const initSocket = useBoardStore((s) => s.initSocket);
   const loading = useBoardStore((s) => s.loading);
   const columns = useBoardStore((s) => s.columns);
   const [initializing, setInitializing] = useState(true);
@@ -36,6 +37,7 @@ export default function Home() {
         }
 
         await loadBoard(boardId);
+        initSocket();
       } catch (err) {
         console.error("Init error:", err);
         setError((err as Error).message);
@@ -45,7 +47,7 @@ export default function Home() {
     }
 
     init();
-  }, [loadBoard]);
+  }, [loadBoard, initSocket]);
 
   if (initializing || loading) {
     return (

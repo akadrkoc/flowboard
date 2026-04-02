@@ -8,20 +8,25 @@ Collaborative Kanban task management application.
 - **Styling:** Tailwind CSS + shadcn/ui
 - **Drag & Drop:** @dnd-kit/core + @dnd-kit/sortable
 - **State:** Zustand
-- **API:** Apollo Client (frontend) + Apollo Server (backend) - GraphQL
-- **Database:** MongoDB + Mongoose
-- **Real-time:** Socket.io
-- **Auth:** NextAuth.js (Google + GitHub OAuth)
-- **Charts:** Recharts
+- **API:** Apollo Server (GraphQL) + graphqlFetch (lightweight client)
+- **Database:** MongoDB Atlas + Mongoose
+- **Real-time:** Socket.io (custom server)
+- **Auth:** NextAuth.js (Google + GitHub OAuth) — Phase 3
+- **Charts:** Recharts — Phase 4
 
 ## Project Structure
 
 ```
+server.ts                 # Custom HTTP server (Next.js + Socket.io)
+tsconfig.server.json      # TypeScript config for server.ts
 src/
   app/
-    page.tsx              # Ana sayfa - Board render
+    page.tsx              # Ana sayfa - Board render + init
     layout.tsx            # Root layout (dark mode, font)
     globals.css           # Global stiller
+    api/
+      graphql/route.ts    # Apollo Server GraphQL endpoint
+      test-db/route.ts    # MongoDB baglanti testi
   components/
     Board.tsx             # DndContext + kolon layout
     KanbanColumn.tsx      # Tekil kolon (SortableContext)
@@ -30,50 +35,47 @@ src/
     Navbar.tsx            # Ust navigasyon
     StatsBar.tsx          # Alt istatistik bari
     ui/                   # shadcn/ui primitives
+  graphql/
+    typeDefs.ts           # GraphQL schema
+    resolvers.ts          # GraphQL resolvers
+    operations.ts         # Client-side query/mutation strings (Apollo)
+  lib/
+    mongodb.ts            # Mongoose connection helper (cached)
+    graphqlFetch.ts       # Lightweight GraphQL client (fetch-based)
+    socket.ts             # Socket.io client singleton
+  models/
+    Board.ts              # Mongoose Board model
+    Column.ts             # Mongoose Column model
+    Card.ts               # Mongoose Card model
+    User.ts               # Mongoose User model
   store/
-    boardStore.ts         # Zustand global state
+    boardStore.ts         # Zustand store (API + Socket.io entegreli)
   types/
     board.ts              # Card, Column, Priority tipleri
   data/
-    mockData.ts           # Ornek veriler (Phase 1)
-```
-
-## Data Shapes
-
-```ts
-type Card = {
-  id: string;
-  title: string;
-  labels: string[];
-  priority: "high" | "med" | "low";
-  dueDate: string;
-  storyPoints: number;
-  assigneeInitials: string;
-  assigneeColor: string;
-  columnId: string;
-  order: number;
-};
-
-type Column = {
-  id: string;
-  title: string;
-  cards: Card[];
-};
+    mockData.ts           # Ornek veriler (Phase 1 legacy)
 ```
 
 ## Commands
 
 ```bash
-npm run dev      # Development server (localhost:3000)
+npm run dev      # Custom server (Next.js + Socket.io, localhost:3000)
+npm run dev:next # Sadece Next.js dev server (Socket.io yok)
 npm run build    # Production build
 npm run lint     # ESLint
+```
+
+## Environment Variables
+
+```
+MONGODB_URI=mongodb+srv://...   # .env.local dosyasinda
 ```
 
 ---
 
 ## Development Phases
 
-### PHASE 1 - Project Setup & Kanban Board UI 
+### PHASE 1 - Project Setup & Kanban Board UI [TAMAMLANDI]
 
 - [x] Next.js 14 + TypeScript + Tailwind kurulumu
 - [x] shadcn/ui kurulumu ve konfigurasyonu
@@ -95,61 +97,26 @@ npm run lint     # ESLint
 - [x] Responsive: yatay scroll (mobil), navbar collapse
 - [x] UI primitives: Avatar, Badge, Dialog, Input, Select, Switch, Textarea, Tooltip
 
-**Eksikler / Phase 2'ye devredilen:**
-- Optimistic UI server sync (backend yok henuz)
-- Subscription-based real-time sync
+---
+
+### PHASE 2 - GraphQL API + Real-time [TAMAMLANDI]
+
+- [x] MongoDB Atlas baglantisi (Mongoose + connection helper)
+- [x] Mongoose modelleri: Board, Column, Card, User
+- [x] Apollo Server kurulumu (`/api/graphql` route)
+- [x] GraphQL type definitions + resolvers
+- [x] Frontend GraphQL client (graphqlFetch - fetch-based)
+- [x] Zustand store API entegrasyonu
+- [x] Optimistic UI: kart aninda hareket, arka planda mutation
+- [x] Custom server (server.ts - Next.js + Socket.io tek port)
+- [x] Socket.io server (board rooms, event broadcasting)
+- [x] Socket.io client entegrasyonu (auto-join, event listeners)
+- [x] Real-time sync: card-moved, card-created, card-updated, card-deleted
+- [x] Board otomatik olusturma (ilk acilista board yoksa olustur)
 
 ---
 
-### PHASE 2 - GraphQL API [SIRADA]
-
-Apollo Server'i Next.js API route olarak kur (`/api/graphql`).
-
-**Mongoose Modelleri:**
-- `Board` { name, ownerId, memberIds[], columnIds[] }
-- `Column` { name, boardId, order }
-- `Card` { title, description, labels[], priority, dueDate, storyPoints, assigneeId, columnId, order }
-- `User` { email, name, image, provider }
-
-**GraphQL Schema:**
-```graphql
-type Query {
-  boards: [Board!]!
-  board(id: ID!): Board
-  me: User
-}
-
-type Mutation {
-  createBoard(name: String!): Board!
-  createCard(columnId: ID!, input: CardInput!): Card!
-  moveCard(cardId: ID!, toColumnId: ID!, newIndex: Int!): Card!
-  updateCard(cardId: ID!, input: CardInput!): Card!
-  deleteCard(cardId: ID!): Boolean!
-  inviteMember(boardId: ID!, email: String!): Board!
-}
-
-type Subscription {
-  onCardMoved(boardId: ID!): Card!
-  onCardCreated(boardId: ID!): Card!
-}
-```
-
-**Yapilacaklar:**
-- [ ] MongoDB baglantisi (Mongoose + connection helper)
-- [ ] Mongoose modelleri: Board, Column, Card, User
-- [ ] Apollo Server kurulumu (`/api/graphql` route)
-- [ ] GraphQL type definitions + resolvers
-- [ ] Apollo Client kurulumu (frontend provider)
-- [ ] Zustand store'u Apollo Client ile baglama
-- [ ] Optimistic UI: kart aninda hareket, arka planda mutation
-- [ ] Socket.io server kurulumu
-- [ ] Socket.io client entegrasyonu
-- [ ] Subscription: onCardMoved, onCardCreated ile real-time sync
-- [ ] Hata yonetimi ve retry mekanizmasi
-
----
-
-### PHASE 3 - Authentication (NextAuth.js) [BEKLEMEDE]
+### PHASE 3 - Authentication (NextAuth.js) [SIRADA]
 
 - [ ] NextAuth.js kurulumu
 - [ ] Google OAuth provider konfigurasyonu
@@ -183,7 +150,9 @@ Recharts ile:
 - Component dosyalari PascalCase: `KanbanCard.tsx`
 - Store dosyalari camelCase: `boardStore.ts`
 - Type dosyalari camelCase: `board.ts`
-- shadcn/ui bileşenleri `src/components/ui/` altinda
+- shadcn/ui bilesenleri `src/components/ui/` altinda
 - Tum bilesenler `"use client"` directive kullanir (client-side interactivity)
 - Tailwind dark mode: class-based (`dark:` prefix)
 - Import alias: `@/` -> `src/`
+- GraphQL: Apollo Server (backend), graphqlFetch (frontend - lightweight)
+- Real-time: Socket.io event-based (join-board, card-moved, card-created, card-updated, card-deleted)
