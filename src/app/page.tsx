@@ -6,6 +6,7 @@ import { graphqlFetch } from "@/lib/graphqlFetch";
 import Navbar from "@/components/Navbar";
 import Board from "@/components/Board";
 import StatsBar from "@/components/StatsBar";
+import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 
 const GET_BOARDS_QUERY = `query { boards { id name } }`;
 const CREATE_BOARD_MUTATION = `mutation CreateBoard($name: String!) { createBoard(name: $name) { id name } }`;
@@ -15,6 +16,7 @@ export default function Home() {
   const initSocket = useBoardStore((s) => s.initSocket);
   const loading = useBoardStore((s) => s.loading);
   const columns = useBoardStore((s) => s.columns);
+  const activeView = useBoardStore((s) => s.activeView);
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,8 +78,14 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen bg-[#16161e] text-white">
       <Navbar />
-      <Board />
-      <StatsBar />
+      {activeView === "analytics" ? (
+        <AnalyticsDashboard />
+      ) : (
+        <>
+          <Board />
+          <StatsBar />
+        </>
+      )}
     </div>
   );
 }

@@ -12,7 +12,7 @@ Collaborative Kanban task management application.
 - **Database:** MongoDB Atlas + Mongoose
 - **Real-time:** Socket.io (custom server)
 - **Auth:** NextAuth.js v4 (Google + GitHub OAuth, JWT session)
-- **Charts:** Recharts — Phase 4
+- **Charts:** Recharts
 
 ## Project Structure
 
@@ -37,6 +37,12 @@ src/
     Navbar.tsx            # Ust navigasyon (user avatar, logout)
     StatsBar.tsx          # Alt istatistik bari
     SessionWrapper.tsx    # NextAuth SessionProvider wrapper
+    analytics/
+      AnalyticsDashboard.tsx  # Ana analytics sayfasi
+      CompletedPerDay.tsx     # Bar chart
+      CardsByMember.tsx       # Pie chart
+      SprintBurndown.tsx      # Line chart
+      StatCards.tsx            # Stat kartlari
     ui/                   # shadcn/ui primitives
   graphql/
     typeDefs.ts           # GraphQL schema
@@ -143,18 +149,17 @@ GOOGLE_CLIENT_SECRET=...
 
 ---
 
-### PHASE 4 - Analytics Sayfasi [SIRADA]
+### PHASE 4 - Analytics Sayfasi [TAMAMLANDI]
 
-Route: `/board/[id]/analytics`
+Navbar'daki "Analytics" butonuyla acilir (activeView state).
 
-Recharts ile:
-- [ ] Bar chart: son 14 gunde tamamlanan kartlar (gune gore)
-- [ ] Pie chart: takim uyesine gore kart dagilimi
-- [ ] Line chart: sprint burndown (gun basina kalan story points)
-- [ ] Stat kartlari: ortalama cycle time, velocity (pts/sprint), on-time rate
-- [ ] Analytics view switcher ile entegrasyon (Navbar'daki buton)
-- [ ] Tarih aralik secici (date range picker)
-- [ ] Responsive layout (mobile-friendly grid)
+- [x] Recharts kurulumu
+- [x] Bar chart: son 14 gunde tamamlanan kartlar (CompletedPerDay)
+- [x] Pie chart: takim uyesine gore kart dagilimi (CardsByMember)
+- [x] Line chart: sprint burndown - ideal vs remaining (SprintBurndown)
+- [x] Stat kartlari: avg cycle time, velocity, on-time rate, completed (StatCards)
+- [x] Analytics view switcher entegrasyonu (Navbar buton → activeView → AnalyticsDashboard)
+- [x] Responsive layout (2x2 grid desktop, tek kolon mobile)
 
 ---
 

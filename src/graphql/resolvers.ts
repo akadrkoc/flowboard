@@ -136,6 +136,17 @@ export const resolvers = {
         );
 
         card.columnId = toColumnId as unknown as typeof card.columnId;
+
+        // Son kolona (Done) taşınıyorsa completedAt set et
+        const allColumns = await Column.find({ boardId: card.boardId })
+          .sort({ order: 1 })
+          .lean();
+        const lastColumn = allColumns[allColumns.length - 1];
+        if (lastColumn && lastColumn._id.toString() === toColumnId) {
+          card.completedAt = new Date();
+        } else {
+          card.completedAt = null as unknown as Date;
+        }
       } else {
         // Aynı kolon içinde yeniden sıralama
         const oldIndex = card.order;

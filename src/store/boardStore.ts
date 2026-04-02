@@ -45,6 +45,8 @@ const GET_BOARD_QUERY = `
           assigneeColor
           columnId
           order
+          completedAt
+          createdAt
         }
       }
     }
@@ -133,6 +135,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
               assigneeColor: card.assigneeColor || "bg-gray-500",
               columnId: card.columnId,
               order: card.order,
+              completedAt: card.completedAt || undefined,
+              createdAt: card.createdAt || undefined,
             })),
           })),
         });
