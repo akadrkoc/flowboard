@@ -20,6 +20,14 @@ export default function Home() {
   const [initializing, setInitializing] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Sync dark mode class with store state on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("flowboard-dark");
+    const isDark = saved !== null ? saved === "true" : true;
+    document.documentElement.classList.toggle("dark", isDark);
+    if (!isDark) useBoardStore.setState({ darkMode: false });
+  }, []);
+
   useEffect(() => {
     async function init() {
       try {
@@ -53,7 +61,7 @@ export default function Home() {
 
   if (initializing || loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#16161e] text-white">
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[#16161e] text-gray-900 dark:text-white">
         <div className="text-lg opacity-60">Loading board...</div>
       </div>
     );
@@ -61,7 +69,7 @@ export default function Home() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#16161e] text-white">
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[#16161e] text-gray-900 dark:text-white">
         <div className="text-lg text-red-400">Error: {error}</div>
       </div>
     );
@@ -69,14 +77,14 @@ export default function Home() {
 
   if (columns.length === 0) {
     return (
-      <div className="flex items-center justify-center h-screen bg-[#16161e] text-white">
+      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[#16161e] text-gray-900 dark:text-white">
         <div className="text-lg opacity-60">No board found</div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#16161e] text-white">
+    <div className="flex flex-col h-screen bg-gray-50 dark:bg-[#16161e] text-gray-900 dark:text-white">
       <Navbar />
       {activeView === "analytics" ? (
         <AnalyticsDashboard />

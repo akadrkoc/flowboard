@@ -62,7 +62,7 @@ export default function StatCards({
       {cards.map((card) => (
         <div
           key={card.key}
-          className="bg-[#1e1e2e] rounded-xl border border-white/[0.06] p-4"
+          className="bg-white dark:bg-[#1e1e2e] rounded-xl border border-gray-200 dark:border-white/[0.06] p-4"
         >
           <div className="flex items-center gap-2 mb-2">
             <div className={`p-1.5 rounded-lg ${card.bgColor}`}>
@@ -72,7 +72,7 @@ export default function StatCards({
               {card.label}
             </span>
           </div>
-          <div className="text-xl font-bold text-white">
+          <div className="text-xl font-bold text-gray-900 dark:text-white">
             {card.format(values[card.key])}
           </div>
         </div>

@@ -398,6 +398,14 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
   },
 
-  toggleDarkMode: () => set((state) => ({ darkMode: !state.darkMode })),
+  toggleDarkMode: () =>
+    set((state) => {
+      const newDarkMode = !state.darkMode;
+      if (typeof document !== "undefined") {
+        document.documentElement.classList.toggle("dark", newDarkMode);
+        localStorage.setItem("flowboard-dark", String(newDarkMode));
+      }
+      return { darkMode: newDarkMode };
+    }),
   setActiveView: (view) => set({ activeView: view }),
 }));
