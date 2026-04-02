@@ -11,6 +11,7 @@ interface BoardState {
   activeView: "kanban" | "scrum" | "analytics";
   loadBoard: (boardId: string) => Promise<void>;
   initSocket: () => void;
+  moveCardLocal: (cardId: string, toColumnId: string, newIndex: number) => void;
   moveCard: (cardId: string, toColumnId: string, newIndex: number) => void;
   addCard: (
     columnId: string,
@@ -219,8 +220,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     });
   },
 
-  moveCard: (cardId, toColumnId, newIndex) => {
-    // Optimistic update: UI anında güncellenir
+  moveCardLocal: (cardId, toColumnId, newIndex) => {
     set((state) => {
       const columns = state.columns.map((col) => ({
         ...col,
@@ -254,6 +254,11 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
       return { columns };
     });
+  },
+
+  moveCard: (cardId, toColumnId, newIndex) => {
+    // Optimistic update
+    get().moveCardLocal(cardId, toColumnId, newIndex);
 
     // Arka planda API'ye sync et + diğer client'lara bildir
     const { boardId } = get();
