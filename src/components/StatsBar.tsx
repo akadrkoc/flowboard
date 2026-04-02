@@ -8,7 +8,8 @@ export default function StatsBar() {
 
   const allCards = columns.flatMap((col) => col.cards);
   const totalCards = allCards.length;
-  const doneCards = columns.find((c) => c.id === "col-done")?.cards.length ?? 0;
+  const lastColumn = columns[columns.length - 1];
+  const doneCards = lastColumn?.cards.length ?? 0;
   const totalPoints = allCards.reduce((sum, c) => sum + c.storyPoints, 0);
   const donePercent = totalCards > 0 ? Math.round((doneCards / totalCards) * 100) : 0;
 

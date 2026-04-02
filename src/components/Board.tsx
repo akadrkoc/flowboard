@@ -4,7 +4,9 @@ import { useState, useCallback } from "react";
 import {
   DndContext,
   DragOverlay,
-  closestCorners,
+  closestCenter,
+  pointerWithin,
+  rectIntersection,
   KeyboardSensor,
   PointerSensor,
   useSensor,
@@ -12,6 +14,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
   type DragOverEvent,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useBoardStore } from "@/store/boardStore";
@@ -22,6 +25,7 @@ import type { Card } from "@/types/board";
 export default function Board() {
   const columns = useBoardStore((s) => s.columns);
   const moveCard = useBoardStore((s) => s.moveCard);
+  const moveCardLocal = useBoardStore((s) => s.moveCardLocal);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
 
   const sensors = useSensors(
@@ -32,6 +36,21 @@ export default function Board() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
+
+  // Custom collision detection: önce pointer'ın içinde olduğu alanı kontrol et,
+  // sonra en yakın merkeze bak. Bu boş kolonlara da drop etmeyi sağlar.
+  const collisionDetection: CollisionDetection = useCallback((args) => {
+    // Önce pointer'ın doğrudan üzerinde olduğu elemanları bul
+    const pointerCollisions = pointerWithin(args);
+    if (pointerCollisions.length > 0) return pointerCollisions;
+
+    // Pointer hiçbir şeyin üzerinde değilse rect intersection dene
+    const rectCollisions = rectIntersection(args);
+    if (rectCollisions.length > 0) return rectCollisions;
+
+    // Son çare: en yakın merkez
+    return closestCenter(args);
+  }, []);
 
   const findColumnByCardId = useCallback(
     (cardId: string) => {
@@ -69,9 +88,9 @@ export default function Board() {
       const overCardIdx = overCol.cards.findIndex((c) => c.id === overId);
       const newIndex = overCardIdx >= 0 ? overCardIdx : overCol.cards.length;
 
-      moveCard(activeId, overCol.id, newIndex);
+      moveCardLocal(activeId, overCol.id, newIndex);
     },
-    [columns, findColumnByCardId, moveCard]
+    [columns, findColumnByCardId, moveCardLocal]
   );
 
   const handleDragEnd = useCallback(
@@ -111,7 +130,7 @@ export default function Board() {
   return (
     <DndContext
       sensors={sensors}
-      collisionDetection={closestCorners}
+      collisionDetection={collisionDetection}
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
