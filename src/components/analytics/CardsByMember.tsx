@@ -17,7 +17,7 @@ const COLORS = ["#8b5cf6", "#06b6d4", "#f59e0b", "#ef4444", "#10b981", "#ec4899"
 
 export default function CardsByMember({ data }: Props) {
   return (
-    <div className="bg-white dark:bg-[#1e1e2e] rounded-xl border border-gray-200 dark:border-white/[0.06] p-5">
+    <div className="bg-[#fbf6ef] dark:bg-[#1e1e2e] rounded-xl border border-[#ead7c3] dark:border-white/[0.06] p-5">
       <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-4">
         Cards by Member
       </h3>

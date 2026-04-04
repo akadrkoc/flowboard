@@ -5,7 +5,9 @@ import { useBoardStore } from "@/store/boardStore";
 import { graphqlFetch } from "@/lib/graphqlFetch";
 import Navbar from "@/components/Navbar";
 import Board from "@/components/Board";
+import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
+import UndoToast from "@/components/UndoToast";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 
 const GET_BOARDS_QUERY = `query { boards { id name } }`;
@@ -14,6 +16,8 @@ const CREATE_BOARD_MUTATION = `mutation CreateBoard($name: String!) { createBoar
 export default function Home() {
   const loadBoard = useBoardStore((s) => s.loadBoard);
   const initSocket = useBoardStore((s) => s.initSocket);
+  const loadMembers = useBoardStore((s) => s.loadMembers);
+  const loadSprints = useBoardStore((s) => s.loadSprints);
   const loading = useBoardStore((s) => s.loading);
   const columns = useBoardStore((s) => s.columns);
   const activeView = useBoardStore((s) => s.activeView);
@@ -48,6 +52,8 @@ export default function Home() {
 
         await loadBoard(boardId);
         initSocket();
+        loadMembers();
+        loadSprints();
       } catch (err) {
         console.error("Init error:", err);
         setError((err as Error).message);
@@ -57,11 +63,11 @@ export default function Home() {
     }
 
     init();
-  }, [loadBoard, initSocket]);
+  }, [loadBoard, initSocket, loadMembers, loadSprints]);
 
   if (initializing || loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[#16161e] text-gray-900 dark:text-white">
+      <div className="flex items-center justify-center h-screen bg-[#fbf6ef] dark:bg-[#16161e] text-gray-900 dark:text-white">
         <div className="text-lg opacity-60">Loading board...</div>
       </div>
     );
@@ -69,7 +75,7 @@ export default function Home() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[#16161e] text-gray-900 dark:text-white">
+      <div className="flex items-center justify-center h-screen bg-[#fbf6ef] dark:bg-[#16161e] text-gray-900 dark:text-white">
         <div className="text-lg text-red-400">Error: {error}</div>
       </div>
     );
@@ -77,23 +83,25 @@ export default function Home() {
 
   if (columns.length === 0) {
     return (
-      <div className="flex items-center justify-center h-screen bg-gray-50 dark:bg-[#16161e] text-gray-900 dark:text-white">
+      <div className="flex items-center justify-center h-screen bg-[#fbf6ef] dark:bg-[#16161e] text-gray-900 dark:text-white">
         <div className="text-lg opacity-60">No board found</div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen bg-gray-50 dark:bg-[#16161e] text-gray-900 dark:text-white">
+    <div className="flex flex-col h-screen bg-[#fbf6ef] dark:bg-[#16161e] text-gray-900 dark:text-white">
       <Navbar />
       {activeView === "analytics" ? (
         <AnalyticsDashboard />
       ) : (
         <>
+          <FilterBar />
           <Board />
           <StatsBar />
         </>
       )}
+      <UndoToast />
     </div>
   );
 }

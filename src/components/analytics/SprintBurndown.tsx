@@ -16,7 +16,7 @@ interface Props {
 
 export default function SprintBurndown({ data }: Props) {
   return (
-    <div className="bg-white dark:bg-[#1e1e2e] rounded-xl border border-gray-200 dark:border-white/[0.06] p-5">
+    <div className="bg-[#fbf6ef] dark:bg-[#1e1e2e] rounded-xl border border-[#ead7c3] dark:border-white/[0.06] p-5">
       <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-4">
         Sprint Burndown
       </h3>

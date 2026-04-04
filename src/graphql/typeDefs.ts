@@ -23,6 +23,7 @@ export const typeDefs = `#graphql
     order: Int!
     completedAt: String
     createdAt: String
+    deletedAt: String
   }
 
   type Column {
@@ -41,6 +42,24 @@ export const typeDefs = `#graphql
     columns: [Column!]!
   }
 
+  type Sprint {
+    id: ID!
+    name: String!
+    boardId: ID!
+    startDate: String!
+    endDate: String!
+    isActive: Boolean!
+  }
+
+  type Comment {
+    id: ID!
+    text: String!
+    cardId: ID!
+    authorName: String!
+    authorImage: String
+    createdAt: String!
+  }
+
   input CardInput {
     title: String
     description: String
@@ -56,6 +75,10 @@ export const typeDefs = `#graphql
     boards: [Board!]!
     board(id: ID!): Board
     me: User
+    comments(cardId: ID!): [Comment!]!
+    boardMembers(boardId: ID!): [User!]!
+    sprints(boardId: ID!): [Sprint!]!
+    activeSprint(boardId: ID!): Sprint
   }
 
   type Mutation {
@@ -64,6 +87,14 @@ export const typeDefs = `#graphql
     moveCard(cardId: ID!, toColumnId: ID!, newIndex: Int!): Card!
     updateCard(cardId: ID!, input: CardInput!): Card!
     deleteCard(cardId: ID!): Boolean!
+    restoreCard(cardId: ID!): Card!
+    addColumn(boardId: ID!, name: String!): Column!
+    renameColumn(columnId: ID!, name: String!): Column!
+    deleteColumn(columnId: ID!): Boolean!
     inviteMember(boardId: ID!, email: String!): Board!
+    removeMember(boardId: ID!, userId: ID!): Board!
+    addComment(cardId: ID!, text: String!): Comment!
+    createSprint(boardId: ID!, name: String!, startDate: String!, endDate: String!): Sprint!
+    completeSprint(sprintId: ID!): Sprint!
   }
 `;

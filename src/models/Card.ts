@@ -14,6 +14,7 @@ export interface ICard extends Document {
   boardId: Types.ObjectId;
   order: number;
   completedAt?: Date;
+  deletedAt?: Date;
 }
 
 const CardSchema = new Schema<ICard>(
@@ -35,6 +36,7 @@ const CardSchema = new Schema<ICard>(
     boardId: { type: Schema.Types.ObjectId, ref: "Board", required: true },
     order: { type: Number, required: true, default: 0 },
     completedAt: { type: Date, default: null },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

@@ -50,6 +50,26 @@ app.prepare().then(() => {
       socket.to(`board:${data.boardId}`).emit("card-deleted", data);
     });
 
+    // Kolon eklendi
+    socket.on("column-added", (data: { boardId: string; column: unknown }) => {
+      socket.to(`board:${data.boardId}`).emit("column-added", data);
+    });
+
+    // Kolon yeniden adlandırıldı
+    socket.on("column-renamed", (data: { boardId: string; columnId: string; name: string }) => {
+      socket.to(`board:${data.boardId}`).emit("column-renamed", data);
+    });
+
+    // Kolon silindi
+    socket.on("column-deleted", (data: { boardId: string; columnId: string }) => {
+      socket.to(`board:${data.boardId}`).emit("column-deleted", data);
+    });
+
+    // Yorum eklendi
+    socket.on("comment-added", (data: { boardId: string; cardId: string; comment: unknown }) => {
+      socket.to(`board:${data.boardId}`).emit("comment-added", data);
+    });
+
     socket.on("disconnect", () => {
       console.log(`[Socket.io] Client disconnected: ${socket.id}`);
     });

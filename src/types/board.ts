@@ -3,6 +3,7 @@ export type Priority = "high" | "med" | "low";
 export type Card = {
   id: string;
   title: string;
+  description?: string;
   labels: string[];
   priority: Priority;
   dueDate: string;
