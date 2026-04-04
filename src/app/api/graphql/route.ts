@@ -15,7 +15,8 @@ const server = new ApolloServer<GraphQLContext>({
   resolvers,
 });
 
-const handler = startServerAndCreateNextHandler<NextRequest>(server, {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const handler = startServerAndCreateNextHandler<NextRequest>(server as any, {
   context: async (): Promise<GraphQLContext> => {
     const session = await getServerSession(authOptions);
     const userId =
