@@ -62,7 +62,7 @@ export default function StatCards({
       {cards.map((card) => (
         <div
           key={card.key}
-          className="bg-white dark:bg-[#1e1e2e] rounded-xl border border-gray-200 dark:border-white/[0.06] p-4"
+          className="bg-[#fbf6ef] dark:bg-[#1e1e2e] rounded-xl border border-[#ead7c3] dark:border-white/[0.06] p-4"
         >
           <div className="flex items-center gap-2 mb-2">
             <div className={`p-1.5 rounded-lg ${card.bgColor}`}>

@@ -9,6 +9,7 @@ import StatCards from "./StatCards";
 
 export default function AnalyticsDashboard() {
   const columns = useBoardStore((s) => s.columns);
+  const activeSprint = useBoardStore((s) => s.activeSprint);
 
   const allCards = useMemo(
     () => columns.flatMap((col) => col.cards),
@@ -56,21 +57,33 @@ export default function AnalyticsDashboard() {
     return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
   }, [allCards]);
 
-  // --- Sprint Burndown (son 10 gün, gerçek completedAt verisinden) ---
+  // --- Sprint Burndown (uses active sprint dates if available) ---
   const burndownData = useMemo(() => {
     const totalPoints = allCards.reduce((sum, c) => sum + c.storyPoints, 0);
-    const sprintDays = 10;
     const data: { day: string; remaining: number; ideal: number }[] = [];
-
-    const now = new Date();
     const completedCards = allCards.filter((c) => c.completedAt);
+
+    let sprintStart: Date;
+    let sprintEnd: Date;
+    let sprintDays: number;
+
+    if (activeSprint?.startDate && activeSprint?.endDate) {
+      sprintStart = new Date(activeSprint.startDate);
+      sprintEnd = new Date(activeSprint.endDate);
+      sprintDays = Math.max(1, Math.ceil((sprintEnd.getTime() - sprintStart.getTime()) / (1000 * 60 * 60 * 24)));
+    } else {
+      const now = new Date();
+      sprintDays = 10;
+      sprintStart = new Date(now);
+      sprintStart.setDate(sprintStart.getDate() - sprintDays);
+      sprintEnd = now;
+    }
 
     for (let i = 0; i <= sprintDays; i++) {
       const ideal = Math.round(totalPoints - (totalPoints / sprintDays) * i);
 
-      // O güne kadar tamamlanan kartların toplam story point'i
-      const dayEnd = new Date(now);
-      dayEnd.setDate(dayEnd.getDate() - (sprintDays - i));
+      const dayEnd = new Date(sprintStart);
+      dayEnd.setDate(dayEnd.getDate() + i);
       dayEnd.setHours(23, 59, 59, 999);
 
       const pointsBurned = completedCards
@@ -85,7 +98,7 @@ export default function AnalyticsDashboard() {
     }
 
     return data;
-  }, [allCards]);
+  }, [allCards, activeSprint]);
 
   // --- Stat Cards ---
   const totalCompleted = doneCards.length;

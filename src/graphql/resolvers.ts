@@ -2,6 +2,9 @@ import { connectDB } from "@/lib/mongodb";
 import { Board } from "@/models/Board";
 import { Column } from "@/models/Column";
 import { Card } from "@/models/Card";
+import { Comment } from "@/models/Comment";
+import { User } from "@/models/User";
+import { Sprint } from "@/models/Sprint";
 import type { GraphQLContext } from "@/app/api/graphql/route";
 
 export const resolvers = {
@@ -23,8 +26,31 @@ export const resolvers = {
     },
 
     me: async () => {
-      // Phase 3'te NextAuth session'dan gelecek
       return null;
+    },
+
+    comments: async (_: unknown, { cardId }: { cardId: string }) => {
+      await connectDB();
+      return Comment.find({ cardId }).sort({ createdAt: 1 }).lean();
+    },
+
+    sprints: async (_: unknown, { boardId }: { boardId: string }) => {
+      await connectDB();
+      return Sprint.find({ boardId }).sort({ createdAt: -1 }).lean();
+    },
+
+    activeSprint: async (_: unknown, { boardId }: { boardId: string }) => {
+      await connectDB();
+      return Sprint.findOne({ boardId, isActive: true }).lean();
+    },
+
+    boardMembers: async (_: unknown, { boardId }: { boardId: string }) => {
+      await connectDB();
+      const board = await Board.findById(boardId).lean();
+      if (!board) throw new Error("Board not found");
+      const memberIds = (board as { memberIds: string[] }).memberIds || [];
+      if (memberIds.length === 0) return [];
+      return User.find({ _id: { $in: memberIds } }).lean();
     },
   },
 
@@ -41,7 +67,7 @@ export const resolvers = {
   Column: {
     id: (parent: { _id: string }) => parent._id.toString(),
     cards: async (parent: { _id: string }) => {
-      const cards = await Card.find({ columnId: parent._id })
+      const cards = await Card.find({ columnId: parent._id, deletedAt: null })
         .sort({ order: 1 })
         .lean();
       return cards;
@@ -52,6 +78,20 @@ export const resolvers = {
     id: (parent: { _id: string }) => parent._id.toString(),
     columnId: (parent: { columnId: string }) => parent.columnId.toString(),
     boardId: (parent: { boardId: string }) => parent.boardId.toString(),
+  },
+
+  User: {
+    id: (parent: { _id: string }) => parent._id.toString(),
+  },
+
+  Sprint: {
+    id: (parent: { _id: string }) => parent._id.toString(),
+    boardId: (parent: { boardId: string }) => parent.boardId.toString(),
+  },
+
+  Comment: {
+    id: (parent: { _id: string }) => parent._id.toString(),
+    cardId: (parent: { cardId: string }) => parent.cardId.toString(),
   },
 
   Mutation: {
@@ -198,13 +238,104 @@ export const resolvers = {
       const card = await Card.findById(cardId);
       if (!card) throw new Error("Card not found");
 
+      // Soft delete: set deletedAt
+      card.deletedAt = new Date();
+      await card.save();
+
       // Silinen karttan sonraki kartların order'ını düşür
       await Card.updateMany(
-        { columnId: card.columnId, order: { $gt: card.order } },
+        { columnId: card.columnId, deletedAt: null, order: { $gt: card.order } },
         { $inc: { order: -1 } }
       );
 
-      await Card.findByIdAndDelete(cardId);
+      return true;
+    },
+
+    restoreCard: async (_: unknown, { cardId }: { cardId: string }) => {
+      await connectDB();
+
+      const card = await Card.findById(cardId);
+      if (!card) throw new Error("Card not found");
+
+      // Restore: clear deletedAt and append to end of column
+      const lastCard = await Card.findOne({ columnId: card.columnId, deletedAt: null })
+        .sort({ order: -1 })
+        .lean();
+      const nextOrder = lastCard ? (lastCard as { order: number }).order + 1 : 0;
+
+      card.deletedAt = null as unknown as Date;
+      card.order = nextOrder;
+      await card.save();
+
+      return card;
+    },
+
+    addColumn: async (
+      _: unknown,
+      { boardId, name }: { boardId: string; name: string }
+    ) => {
+      await connectDB();
+
+      const board = await Board.findById(boardId);
+      if (!board) throw new Error("Board not found");
+
+      const lastColumn = await Column.findOne({ boardId })
+        .sort({ order: -1 })
+        .lean();
+      const nextOrder = lastColumn ? (lastColumn as { order: number }).order + 1 : 0;
+
+      const column = await Column.create({ name, boardId, order: nextOrder });
+      board.columnIds.push(column._id);
+      await board.save();
+
+      return column;
+    },
+
+    renameColumn: async (
+      _: unknown,
+      { columnId, name }: { columnId: string; name: string }
+    ) => {
+      await connectDB();
+
+      const column = await Column.findByIdAndUpdate(columnId, { name }, { new: true }).lean();
+      if (!column) throw new Error("Column not found");
+      return column;
+    },
+
+    deleteColumn: async (_: unknown, { columnId }: { columnId: string }) => {
+      await connectDB();
+
+      const column = await Column.findById(columnId);
+      if (!column) throw new Error("Column not found");
+
+      // Move cards to first column of the board
+      const firstColumn = await Column.findOne({
+        boardId: column.boardId,
+        _id: { $ne: columnId },
+      })
+        .sort({ order: 1 })
+        .lean();
+
+      if (firstColumn) {
+        const lastCard = await Card.findOne({ columnId: firstColumn._id, deletedAt: null })
+          .sort({ order: -1 })
+          .lean();
+        let nextOrder = lastCard ? (lastCard as { order: number }).order + 1 : 0;
+
+        const cardsToMove = await Card.find({ columnId, deletedAt: null }).sort({ order: 1 });
+        for (const card of cardsToMove) {
+          card.columnId = firstColumn._id;
+          card.order = nextOrder++;
+          await card.save();
+        }
+      }
+
+      // Remove from board's columnIds
+      await Board.findByIdAndUpdate(column.boardId, {
+        $pull: { columnIds: column._id },
+      });
+
+      await Column.findByIdAndDelete(columnId);
       return true;
     },
 
@@ -214,13 +345,96 @@ export const resolvers = {
     ) => {
       await connectDB();
 
-      // Phase 3'te User lookup ile gerçekleşecek
       const board = await Board.findById(boardId);
       if (!board) throw new Error("Board not found");
 
-      // Placeholder - email ile user bulup memberIds'e ekleyeceğiz
-      void email;
+      const user = await User.findOne({ email }).lean();
+      if (!user) throw new Error("User not found with that email");
+
+      const userId = (user as { _id: { toString(): string } })._id.toString();
+      if (!board.memberIds.map((id: { toString(): string }) => id.toString()).includes(userId)) {
+        board.memberIds.push(userId as unknown as typeof board.memberIds[0]);
+        await board.save();
+      }
+
       return board;
+    },
+
+    removeMember: async (
+      _: unknown,
+      { boardId, userId }: { boardId: string; userId: string }
+    ) => {
+      await connectDB();
+
+      const board = await Board.findById(boardId);
+      if (!board) throw new Error("Board not found");
+
+      board.memberIds = board.memberIds.filter(
+        (id: { toString(): string }) => id.toString() !== userId
+      );
+      await board.save();
+      return board;
+    },
+
+    createSprint: async (
+      _: unknown,
+      { boardId, name, startDate, endDate }: { boardId: string; name: string; startDate: string; endDate: string }
+    ) => {
+      await connectDB();
+
+      // Deactivate any current active sprint
+      await Sprint.updateMany({ boardId, isActive: true }, { isActive: false });
+
+      const sprint = await Sprint.create({
+        name,
+        boardId,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        isActive: true,
+      });
+
+      return sprint;
+    },
+
+    completeSprint: async (_: unknown, { sprintId }: { sprintId: string }) => {
+      await connectDB();
+
+      const sprint = await Sprint.findByIdAndUpdate(
+        sprintId,
+        { isActive: false },
+        { new: true }
+      ).lean();
+
+      if (!sprint) throw new Error("Sprint not found");
+      return sprint;
+    },
+
+    addComment: async (
+      _: unknown,
+      { cardId, text }: { cardId: string; text: string },
+      ctx: GraphQLContext
+    ) => {
+      await connectDB();
+
+      let authorName = "Anonymous";
+      let authorImage: string | undefined;
+
+      if (ctx.userId) {
+        const user = await User.findById(ctx.userId).lean();
+        if (user) {
+          authorName = (user as { name: string }).name;
+          authorImage = (user as { image?: string }).image;
+        }
+      }
+
+      const comment = await Comment.create({
+        text,
+        cardId,
+        authorName,
+        authorImage,
+      });
+
+      return comment;
     },
   },
 };

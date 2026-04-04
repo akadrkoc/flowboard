@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -26,7 +26,24 @@ export default function Board() {
   const columns = useBoardStore((s) => s.columns);
   const moveCard = useBoardStore((s) => s.moveCard);
   const moveCardLocal = useBoardStore((s) => s.moveCardLocal);
+  const searchQuery = useBoardStore((s) => s.searchQuery);
+  const filterPriority = useBoardStore((s) => s.filterPriority);
+  const filterLabel = useBoardStore((s) => s.filterLabel);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
+
+  const filteredColumns = useMemo(() => {
+    if (!searchQuery && !filterPriority && !filterLabel) return columns;
+    const q = searchQuery.toLowerCase();
+    return columns.map((col) => ({
+      ...col,
+      cards: col.cards.filter((card) => {
+        if (q && !card.title.toLowerCase().includes(q) && !(card.description || "").toLowerCase().includes(q)) return false;
+        if (filterPriority && card.priority !== filterPriority) return false;
+        if (filterLabel && !card.labels.includes(filterLabel)) return false;
+        return true;
+      }),
+    }));
+  }, [columns, searchQuery, filterPriority, filterLabel]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -136,8 +153,8 @@ export default function Board() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex-1 flex justify-center gap-5 overflow-x-auto p-6 pb-4">
-        {columns.map((column, index) => (
-          <KanbanColumn key={column.id} column={column} index={index} />
+        {filteredColumns.map((column, index) => (
+          <KanbanColumn key={column.id} column={column} index={index} isLast={index === filteredColumns.length - 1} />
         ))}
       </div>
 

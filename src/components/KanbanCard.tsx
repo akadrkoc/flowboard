@@ -4,8 +4,18 @@ import { useState, useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Card as CardType } from "@/types/board";
-import { Calendar, Flame } from "lucide-react";
+import { Calendar, Flame, AlertCircle } from "lucide-react";
 import CardDetailModal from "@/components/CardDetailModal";
+
+function getDueDateStatus(dueDate: string): "overdue" | "today" | "normal" {
+  if (!dueDate) return "normal";
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dueDate + "T00:00:00");
+  if (due < today) return "overdue";
+  if (due.getTime() === today.getTime()) return "today";
+  return "normal";
+}
 
 const labelColors: Record<string, string> = {
   Frontend: "bg-violet-500/20 text-violet-600 dark:text-violet-300",
@@ -78,10 +88,10 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
         onPointerMove={handlePointerMove}
         onClick={handleClick}
         className={`
-          group relative rounded-lg border border-gray-200 dark:border-white/[0.06] bg-white dark:bg-[#1e1e2e] p-3.5
-          shadow-sm hover:shadow-md hover:border-gray-300 dark:hover:border-white/[0.12]
+          group relative rounded-lg border border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#1e1e2e] p-3.5
+          shadow-sm hover:shadow-md hover:border-[#d4c4ae] dark:hover:border-white/[0.12]
           transition-all duration-150 cursor-grab active:cursor-grabbing
-          ${isDraggingOverlay ? "shadow-xl shadow-black/20 dark:shadow-black/30 ring-1 ring-gray-300 dark:ring-white/10" : ""}
+          ${isDraggingOverlay ? "shadow-xl shadow-black/20 dark:shadow-black/30 ring-1 ring-[#ead7c3] dark:ring-white/10" : ""}
           ${isDragging ? "opacity-40" : ""}
         `}
       >
@@ -100,9 +110,16 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
         </div>
 
         {/* Title */}
-        <p className="text-[13px] font-medium text-gray-800 dark:text-gray-100 leading-snug mb-3">
+        <p className="text-[13px] font-medium text-gray-800 dark:text-gray-100 leading-snug mb-1">
           {card.title}
         </p>
+
+        {/* Description (truncated) */}
+        {card.description && (
+          <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug mb-2 truncate">
+            {card.description}
+          </p>
+        )}
 
         {/* Bottom row */}
         <div className="flex items-center justify-between">
@@ -114,15 +131,28 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
             />
 
             {/* Due date */}
-            {card.dueDate && (
-              <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
-                <Calendar className="w-3 h-3" />
-                {card.dueDate}
-              </span>
-            )}
+            {card.dueDate && (() => {
+              const status = getDueDateStatus(card.dueDate);
+              return (
+                <span className={`flex items-center gap-1 text-[11px] ${
+                  status === "overdue"
+                    ? "text-red-500 dark:text-red-400 font-medium"
+                    : status === "today"
+                    ? "text-amber-500 dark:text-amber-400 font-medium"
+                    : "text-gray-500 dark:text-gray-400"
+                }`}>
+                  {status === "overdue" ? (
+                    <AlertCircle className="w-3 h-3" />
+                  ) : (
+                    <Calendar className="w-3 h-3" />
+                  )}
+                  {card.dueDate}
+                </span>
+              );
+            })()}
 
             {/* Story points */}
-            <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/[0.05] px-1.5 py-0.5 rounded">
+            <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 bg-[#dce0d9] dark:bg-white/[0.05] px-1.5 py-0.5 rounded">
               <Flame className="w-3 h-3" />
               {card.storyPoints}
             </span>
