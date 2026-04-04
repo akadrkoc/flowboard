@@ -8,7 +8,7 @@ interface BoardState {
   columns: Column[];
   loading: boolean;
   darkMode: boolean;
-  activeView: "kanban" | "scrum" | "analytics";
+  activeView: "kanban" | "analytics";
   searchQuery: string;
   filterPriority: string | null;
   filterLabel: string | null;
@@ -24,7 +24,7 @@ interface BoardState {
   updateCard: (cardId: string, updates: Partial<Card>) => void;
   deleteCard: (cardId: string) => void;
   toggleDarkMode: () => void;
-  setActiveView: (view: "kanban" | "scrum" | "analytics") => void;
+  setActiveView: (view: "kanban" | "analytics") => void;
   setSearchQuery: (query: string) => void;
   setFilterPriority: (priority: string | null) => void;
   setFilterLabel: (label: string | null) => void;
