@@ -13,6 +13,7 @@ export interface GraphQLContext {
 const server = new ApolloServer<GraphQLContext>({
   typeDefs,
   resolvers,
+  includeStacktraceInErrorResponses: process.env.NODE_ENV !== "production",
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
