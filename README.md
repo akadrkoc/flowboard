@@ -1,36 +1,115 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FlowBoard
+
+Collaborative Kanban board for managing tasks across teams. Built with Next.js, GraphQL, and real-time synchronization.
+
+![Next.js](https://img.shields.io/badge/Next.js-14-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-green)
+
+## What is FlowBoard?
+
+FlowBoard is a task management tool where teams can organize work visually using a Kanban board. Cards move through columns (To Do, In Progress, Review, Done), and changes sync instantly across all connected users via WebSockets.
+
+### Key Features
+
+- **Drag-and-drop Kanban board** with customizable columns
+- **Real-time collaboration** -- see changes from teammates instantly
+- **Sprint management** -- create sprints, track burndown
+- **Analytics dashboard** -- completed tasks per day, team workload distribution, velocity tracking
+- **Authentication** with GitHub and Google OAuth
+- **Board-level access control** -- only members can view and modify board data
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 14 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS, shadcn/ui |
+| API | Apollo Server (GraphQL) |
+| Database | MongoDB Atlas (Mongoose) |
+| Real-time | Socket.io |
+| Auth | NextAuth.js v4 (JWT) |
+| State | Zustand |
+| Drag & Drop | dnd-kit |
+| Charts | Recharts |
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 18+
+- MongoDB Atlas cluster
+- GitHub and/or Google OAuth app credentials
+
+### Setup
+
+1. Clone the repo:
+
+```bash
+git clone https://github.com/akadrkoc/flowboard.git
+cd flowboard
+npm install
+```
+
+2. Create a `.env.local` file:
+
+```
+MONGODB_URI=mongodb+srv://...
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-secret-key
+GITHUB_CLIENT_ID=...
+GITHUB_CLIENT_SECRET=...
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+```
+
+3. Start the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+This starts both Next.js and the Socket.io server on port 3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Other Commands
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run dev:next   # Next.js only (no WebSocket support)
+npm run build      # Production build
+npm run lint       # Run ESLint
+```
 
-## Learn More
+## Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+server.ts                    # Custom HTTP server (Next.js + Socket.io)
+src/
+  app/                       # Next.js App Router pages and API routes
+    api/graphql/route.ts     # GraphQL endpoint
+    api/auth/[...nextauth]/  # OAuth handlers
+  components/                # React components
+    Board.tsx                # Main board with drag-and-drop context
+    KanbanColumn.tsx         # Single column
+    KanbanCard.tsx           # Single card
+    analytics/               # Charts and stats
+  graphql/
+    typeDefs.ts              # GraphQL schema
+    resolvers.ts             # Query and mutation resolvers
+    auth.ts                  # Auth helpers and input validation
+  models/                    # Mongoose schemas (Board, Column, Card, User, Sprint, Comment)
+  store/
+    boardStore.ts            # Zustand store with optimistic updates
+  lib/
+    socket.ts                # Socket.io client
+    graphqlFetch.ts          # Lightweight GraphQL client
+    auth.ts                  # NextAuth configuration
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Security
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+All GraphQL queries and mutations require authentication. Board data is scoped to members only -- users can only access boards they own or have been invited to. Input validation is enforced on all user-submitted data. Socket.io connections are authenticated via JWT and board membership is verified before joining rooms.
 
-## Deploy on Vercel
+## License
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT
