@@ -1,3 +1,4 @@
+import { GraphQLError } from "graphql";
 import { connectDB } from "@/lib/mongodb";
 import { Board } from "@/models/Board";
 import { Column } from "@/models/Column";
@@ -6,48 +7,62 @@ import { Comment } from "@/models/Comment";
 import { User } from "@/models/User";
 import { Sprint } from "@/models/Sprint";
 import type { GraphQLContext } from "@/app/api/graphql/route";
+import {
+  requireAuth,
+  requireBoardMember,
+  requireBoardOwner,
+  sanitizeCardInput,
+  validateName,
+  validateEmail,
+  validateDateRange,
+} from "@/graphql/auth";
 
 export const resolvers = {
   Query: {
     boards: async (_: unknown, __: unknown, ctx: GraphQLContext) => {
+      const userId = requireAuth(ctx);
       await connectDB();
-      // Kullanıcının üyesi olduğu veya owner olduğu board'lar
-      if (ctx.userId) {
-        return Board.find({
-          $or: [{ ownerId: ctx.userId }, { memberIds: ctx.userId }],
-        }).lean();
-      }
-      return Board.find().lean();
+      return Board.find({
+        $or: [{ ownerId: userId }, { memberIds: userId }],
+      }).lean();
     },
 
-    board: async (_: unknown, { id }: { id: string }) => {
-      await connectDB();
+    board: async (_: unknown, { id }: { id: string }, ctx: GraphQLContext) => {
+      await requireBoardMember(ctx, id);
       return Board.findById(id).lean();
     },
 
-    me: async () => {
-      return null;
+    me: async (_: unknown, __: unknown, ctx: GraphQLContext) => {
+      if (!ctx.userId) return null;
+      await connectDB();
+      return User.findById(ctx.userId).lean();
     },
 
-    comments: async (_: unknown, { cardId }: { cardId: string }) => {
+    comments: async (_: unknown, { cardId }: { cardId: string }, ctx: GraphQLContext) => {
+      requireAuth(ctx);
       await connectDB();
+
+      const card = await Card.findById(cardId).lean();
+      if (!card) throw new GraphQLError("Card not found", { extensions: { code: "NOT_FOUND" } });
+      await requireBoardMember(ctx, (card as { boardId: { toString(): string } }).boardId.toString());
+
       return Comment.find({ cardId }).sort({ createdAt: 1 }).lean();
     },
 
-    sprints: async (_: unknown, { boardId }: { boardId: string }) => {
-      await connectDB();
+    sprints: async (_: unknown, { boardId }: { boardId: string }, ctx: GraphQLContext) => {
+      await requireBoardMember(ctx, boardId);
       return Sprint.find({ boardId }).sort({ createdAt: -1 }).lean();
     },
 
-    activeSprint: async (_: unknown, { boardId }: { boardId: string }) => {
-      await connectDB();
+    activeSprint: async (_: unknown, { boardId }: { boardId: string }, ctx: GraphQLContext) => {
+      await requireBoardMember(ctx, boardId);
       return Sprint.findOne({ boardId, isActive: true }).lean();
     },
 
-    boardMembers: async (_: unknown, { boardId }: { boardId: string }) => {
-      await connectDB();
+    boardMembers: async (_: unknown, { boardId }: { boardId: string }, ctx: GraphQLContext) => {
+      await requireBoardMember(ctx, boardId);
       const board = await Board.findById(boardId).lean();
-      if (!board) throw new Error("Board not found");
+      if (!board) throw new GraphQLError("Board not found", { extensions: { code: "NOT_FOUND" } });
       const memberIds = (board as { memberIds: string[] }).memberIds || [];
       if (memberIds.length === 0) return [];
       return User.find({ _id: { $in: memberIds } }).lean();
@@ -92,16 +107,20 @@ export const resolvers = {
   Comment: {
     id: (parent: { _id: string }) => parent._id.toString(),
     cardId: (parent: { cardId: string }) => parent.cardId.toString(),
+    authorId: (parent: { authorId?: { toString(): string } }) =>
+      parent.authorId ? parent.authorId.toString() : null,
   },
 
   Mutation: {
     createBoard: async (_: unknown, { name }: { name: string }, ctx: GraphQLContext) => {
+      const userId = requireAuth(ctx);
+      validateName(name, "Board name");
       await connectDB();
 
       const board = await Board.create({
-        name,
-        ownerId: ctx.userId || "000000000000000000000000",
-        memberIds: ctx.userId ? [ctx.userId] : [],
+        name: name.trim(),
+        ownerId: userId,
+        memberIds: [userId],
         columnIds: [],
       });
 
@@ -123,12 +142,17 @@ export const resolvers = {
 
     createCard: async (
       _: unknown,
-      { columnId, input }: { columnId: string; input: Record<string, unknown> }
+      { columnId, input }: { columnId: string; input: Record<string, unknown> },
+      ctx: GraphQLContext
     ) => {
+      requireAuth(ctx);
       await connectDB();
 
       const column = await Column.findById(columnId);
-      if (!column) throw new Error("Column not found");
+      if (!column) throw new GraphQLError("Column not found", { extensions: { code: "NOT_FOUND" } });
+
+      await requireBoardMember(ctx, column.boardId.toString());
+      const sanitized = sanitizeCardInput(input);
 
       // Sıradaki order değerini bul
       const lastCard = await Card.findOne({ columnId })
@@ -137,7 +161,7 @@ export const resolvers = {
       const nextOrder = lastCard ? (lastCard as { order: number }).order + 1 : 0;
 
       const card = await Card.create({
-        ...input,
+        ...sanitized,
         columnId,
         boardId: column.boardId,
         order: nextOrder,
@@ -152,12 +176,16 @@ export const resolvers = {
         cardId,
         toColumnId,
         newIndex,
-      }: { cardId: string; toColumnId: string; newIndex: number }
+      }: { cardId: string; toColumnId: string; newIndex: number },
+      ctx: GraphQLContext
     ) => {
+      requireAuth(ctx);
       await connectDB();
 
       const card = await Card.findById(cardId);
-      if (!card) throw new Error("Card not found");
+      if (!card) throw new GraphQLError("Card not found", { extensions: { code: "NOT_FOUND" } });
+
+      await requireBoardMember(ctx, card.boardId.toString());
 
       const fromColumnId = card.columnId.toString();
       const isMovingColumns = fromColumnId !== toColumnId;
@@ -220,23 +248,33 @@ export const resolvers = {
       {
         cardId,
         input,
-      }: { cardId: string; input: Record<string, unknown> }
+      }: { cardId: string; input: Record<string, unknown> },
+      ctx: GraphQLContext
     ) => {
+      requireAuth(ctx);
       await connectDB();
 
-      const card = await Card.findByIdAndUpdate(cardId, input, {
+      const existingCard = await Card.findById(cardId);
+      if (!existingCard) throw new GraphQLError("Card not found", { extensions: { code: "NOT_FOUND" } });
+
+      await requireBoardMember(ctx, existingCard.boardId.toString());
+      const sanitized = sanitizeCardInput(input);
+
+      const card = await Card.findByIdAndUpdate(cardId, sanitized, {
         new: true,
       }).lean();
 
-      if (!card) throw new Error("Card not found");
       return card;
     },
 
-    deleteCard: async (_: unknown, { cardId }: { cardId: string }) => {
+    deleteCard: async (_: unknown, { cardId }: { cardId: string }, ctx: GraphQLContext) => {
+      requireAuth(ctx);
       await connectDB();
 
       const card = await Card.findById(cardId);
-      if (!card) throw new Error("Card not found");
+      if (!card) throw new GraphQLError("Card not found", { extensions: { code: "NOT_FOUND" } });
+
+      await requireBoardMember(ctx, card.boardId.toString());
 
       // Soft delete: set deletedAt
       card.deletedAt = new Date();
@@ -251,11 +289,14 @@ export const resolvers = {
       return true;
     },
 
-    restoreCard: async (_: unknown, { cardId }: { cardId: string }) => {
+    restoreCard: async (_: unknown, { cardId }: { cardId: string }, ctx: GraphQLContext) => {
+      requireAuth(ctx);
       await connectDB();
 
       const card = await Card.findById(cardId);
-      if (!card) throw new Error("Card not found");
+      if (!card) throw new GraphQLError("Card not found", { extensions: { code: "NOT_FOUND" } });
+
+      await requireBoardMember(ctx, card.boardId.toString());
 
       // Restore: clear deletedAt and append to end of column
       const lastCard = await Card.findOne({ columnId: card.columnId, deletedAt: null })
@@ -272,19 +313,22 @@ export const resolvers = {
 
     addColumn: async (
       _: unknown,
-      { boardId, name }: { boardId: string; name: string }
+      { boardId, name }: { boardId: string; name: string },
+      ctx: GraphQLContext
     ) => {
+      await requireBoardMember(ctx, boardId);
+      validateName(name, "Column name");
       await connectDB();
 
       const board = await Board.findById(boardId);
-      if (!board) throw new Error("Board not found");
+      if (!board) throw new GraphQLError("Board not found", { extensions: { code: "NOT_FOUND" } });
 
       const lastColumn = await Column.findOne({ boardId })
         .sort({ order: -1 })
         .lean();
       const nextOrder = lastColumn ? (lastColumn as { order: number }).order + 1 : 0;
 
-      const column = await Column.create({ name, boardId, order: nextOrder });
+      const column = await Column.create({ name: name.trim(), boardId, order: nextOrder });
       board.columnIds.push(column._id);
       await board.save();
 
@@ -293,20 +337,30 @@ export const resolvers = {
 
     renameColumn: async (
       _: unknown,
-      { columnId, name }: { columnId: string; name: string }
+      { columnId, name }: { columnId: string; name: string },
+      ctx: GraphQLContext
     ) => {
+      requireAuth(ctx);
+      validateName(name, "Column name");
       await connectDB();
 
-      const column = await Column.findByIdAndUpdate(columnId, { name }, { new: true }).lean();
-      if (!column) throw new Error("Column not found");
+      const col = await Column.findById(columnId);
+      if (!col) throw new GraphQLError("Column not found", { extensions: { code: "NOT_FOUND" } });
+
+      await requireBoardMember(ctx, col.boardId.toString());
+
+      const column = await Column.findByIdAndUpdate(columnId, { name: name.trim() }, { new: true }).lean();
       return column;
     },
 
-    deleteColumn: async (_: unknown, { columnId }: { columnId: string }) => {
+    deleteColumn: async (_: unknown, { columnId }: { columnId: string }, ctx: GraphQLContext) => {
+      requireAuth(ctx);
       await connectDB();
 
       const column = await Column.findById(columnId);
-      if (!column) throw new Error("Column not found");
+      if (!column) throw new GraphQLError("Column not found", { extensions: { code: "NOT_FOUND" } });
+
+      await requireBoardMember(ctx, column.boardId.toString());
 
       // Move cards to first column of the board
       const firstColumn = await Column.findOne({
@@ -341,15 +395,18 @@ export const resolvers = {
 
     inviteMember: async (
       _: unknown,
-      { boardId, email }: { boardId: string; email: string }
+      { boardId, email }: { boardId: string; email: string },
+      ctx: GraphQLContext
     ) => {
+      await requireBoardOwner(ctx, boardId);
+      validateEmail(email);
       await connectDB();
 
       const board = await Board.findById(boardId);
-      if (!board) throw new Error("Board not found");
+      if (!board) throw new GraphQLError("Board not found", { extensions: { code: "NOT_FOUND" } });
 
       const user = await User.findOne({ email }).lean();
-      if (!user) throw new Error("User not found with that email");
+      if (!user) throw new GraphQLError("User not found with that email", { extensions: { code: "NOT_FOUND" } });
 
       const userId = (user as { _id: { toString(): string } })._id.toString();
       if (!board.memberIds.map((id: { toString(): string }) => id.toString()).includes(userId)) {
@@ -362,15 +419,34 @@ export const resolvers = {
 
     removeMember: async (
       _: unknown,
-      { boardId, userId }: { boardId: string; userId: string }
+      { boardId, userId: targetUserId }: { boardId: string; userId: string },
+      ctx: GraphQLContext
     ) => {
+      const currentUserId = requireAuth(ctx);
       await connectDB();
 
       const board = await Board.findById(boardId);
-      if (!board) throw new Error("Board not found");
+      if (!board) throw new GraphQLError("Board not found", { extensions: { code: "NOT_FOUND" } });
+
+      const isOwner = board.ownerId.toString() === currentUserId;
+      const isSelfRemove = currentUserId === targetUserId;
+
+      // Only owner can remove others; members can remove themselves
+      if (!isOwner && !isSelfRemove) {
+        throw new GraphQLError("Only the board owner can remove members", {
+          extensions: { code: "FORBIDDEN" },
+        });
+      }
+
+      // Owner cannot be removed
+      if (board.ownerId.toString() === targetUserId) {
+        throw new GraphQLError("Cannot remove the board owner", {
+          extensions: { code: "FORBIDDEN" },
+        });
+      }
 
       board.memberIds = board.memberIds.filter(
-        (id: { toString(): string }) => id.toString() !== userId
+        (id: { toString(): string }) => id.toString() !== targetUserId
       );
       await board.save();
       return board;
@@ -378,15 +454,19 @@ export const resolvers = {
 
     createSprint: async (
       _: unknown,
-      { boardId, name, startDate, endDate }: { boardId: string; name: string; startDate: string; endDate: string }
+      { boardId, name, startDate, endDate }: { boardId: string; name: string; startDate: string; endDate: string },
+      ctx: GraphQLContext
     ) => {
+      await requireBoardMember(ctx, boardId);
+      validateName(name, "Sprint name");
+      validateDateRange(startDate, endDate);
       await connectDB();
 
       // Deactivate any current active sprint
       await Sprint.updateMany({ boardId, isActive: true }, { isActive: false });
 
       const sprint = await Sprint.create({
-        name,
+        name: name.trim(),
         boardId,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
@@ -396,16 +476,18 @@ export const resolvers = {
       return sprint;
     },
 
-    completeSprint: async (_: unknown, { sprintId }: { sprintId: string }) => {
+    completeSprint: async (_: unknown, { sprintId }: { sprintId: string }, ctx: GraphQLContext) => {
+      requireAuth(ctx);
       await connectDB();
 
-      const sprint = await Sprint.findByIdAndUpdate(
-        sprintId,
-        { isActive: false },
-        { new: true }
-      ).lean();
+      const sprint = await Sprint.findById(sprintId);
+      if (!sprint) throw new GraphQLError("Sprint not found", { extensions: { code: "NOT_FOUND" } });
 
-      if (!sprint) throw new Error("Sprint not found");
+      await requireBoardMember(ctx, sprint.boardId.toString());
+
+      sprint.isActive = false;
+      await sprint.save();
+
       return sprint;
     },
 
@@ -414,22 +496,34 @@ export const resolvers = {
       { cardId, text }: { cardId: string; text: string },
       ctx: GraphQLContext
     ) => {
+      const userId = requireAuth(ctx);
       await connectDB();
 
-      let authorName = "Anonymous";
-      let authorImage: string | undefined;
-
-      if (ctx.userId) {
-        const user = await User.findById(ctx.userId).lean();
-        if (user) {
-          authorName = (user as { name: string }).name;
-          authorImage = (user as { image?: string }).image;
-        }
+      // Validate text
+      if (!text || typeof text !== "string" || text.trim().length === 0) {
+        throw new GraphQLError("Comment text must be non-empty", {
+          extensions: { code: "BAD_USER_INPUT" },
+        });
+      }
+      if (text.length > 2000) {
+        throw new GraphQLError("Comment text must be at most 2000 characters", {
+          extensions: { code: "BAD_USER_INPUT" },
+        });
       }
 
+      const card = await Card.findById(cardId).lean();
+      if (!card) throw new GraphQLError("Card not found", { extensions: { code: "NOT_FOUND" } });
+
+      await requireBoardMember(ctx, (card as { boardId: { toString(): string } }).boardId.toString());
+
+      const user = await User.findById(userId).lean();
+      const authorName = user ? (user as { name: string }).name : "Unknown";
+      const authorImage = user ? (user as { image?: string }).image : undefined;
+
       const comment = await Comment.create({
-        text,
+        text: text.trim(),
         cardId,
+        authorId: userId,
         authorName,
         authorImage,
       });

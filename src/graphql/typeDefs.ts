@@ -55,6 +55,7 @@ export const typeDefs = `#graphql
     id: ID!
     text: String!
     cardId: ID!
+    authorId: ID
     authorName: String!
     authorImage: String
     createdAt: String!
