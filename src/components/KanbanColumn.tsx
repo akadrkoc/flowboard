@@ -11,6 +11,13 @@ import { useBoardStore } from "@/store/boardStore";
 import KanbanCard from "./KanbanCard";
 import AddCardForm from "./AddCardForm";
 import { MoreHorizontal, Trash2, Plus } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 const accentColors = [
   "bg-blue-500",
@@ -39,6 +46,8 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(column.title);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [newColumnName, setNewColumnName] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -67,6 +76,14 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
       setEditName(column.title);
     }
     setEditing(false);
+  };
+
+  const handleAddColumn = () => {
+    const trimmed = newColumnName.trim();
+    if (!trimmed) return;
+    addColumn(trimmed);
+    setNewColumnName("");
+    setAddDialogOpen(false);
   };
 
   return (
@@ -167,18 +184,52 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
         </div>
       </div>
 
-      {/* Add column button after last column */}
+      {/* Add column after last column */}
       {isLast && (
-        <button
-          onClick={() => {
-            const name = prompt("Column name:");
-            if (name?.trim()) addColumn(name.trim());
-          }}
-          className="flex-shrink-0 w-full md:w-[280px] lg:w-[300px] h-10 mt-3 md:mt-8 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[#ead7c3] dark:border-white/[0.08] text-gray-400 dark:text-gray-500 hover:border-violet-400 dark:hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400 transition-colors text-[12px] font-medium"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Column
-        </button>
+        <>
+          <button
+            onClick={() => setAddDialogOpen(true)}
+            className="flex-shrink-0 w-full md:w-[280px] lg:w-[300px] h-10 mt-3 md:mt-8 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[#ead7c3] dark:border-white/[0.08] text-gray-400 dark:text-gray-500 hover:border-violet-400 dark:hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400 transition-colors text-[12px] font-medium"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Column
+          </button>
+
+          <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+            <DialogContent className="sm:max-w-sm">
+              <DialogHeader>
+                <DialogTitle>New Column</DialogTitle>
+                <DialogDescription>Give your column a name.</DialogDescription>
+              </DialogHeader>
+              <input
+                autoFocus
+                value={newColumnName}
+                onChange={(e) => setNewColumnName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddColumn()}
+                placeholder="Column name..."
+                className="w-full rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-3 py-2 text-[13px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 dark:focus:border-violet-500 transition-colors"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleAddColumn}
+                  disabled={!newColumnName.trim()}
+                  className="flex-1 py-2 rounded-md bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-[13px] font-medium text-white transition-colors"
+                >
+                  Add Column
+                </button>
+                <button
+                  onClick={() => {
+                    setNewColumnName("");
+                    setAddDialogOpen(false);
+                  }}
+                  className="px-3 py-2 rounded-md text-[13px] font-medium text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 hover:bg-[#dce0d9] dark:hover:bg-white/[0.05] transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </>
       )}
     </div>
   );
