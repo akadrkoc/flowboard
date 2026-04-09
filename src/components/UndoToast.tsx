@@ -18,8 +18,8 @@ export default function UndoToast() {
   if (!lastDeletedCard) return null;
 
   return (
-    <div className="fixed bottom-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-4 py-2.5 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 shadow-lg shadow-black/20 animate-in slide-in-from-bottom-4 fade-in duration-200">
-      <span className="text-[13px]">
+    <div className="fixed bottom-14 sm:bottom-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 shadow-lg shadow-black/20 animate-in slide-in-from-bottom-4 fade-in duration-200 max-w-[calc(100vw-2rem)]">
+      <span className="text-[12px] sm:text-[13px] truncate">
         Deleted <strong className="font-semibold">&quot;{lastDeletedCard.title}&quot;</strong>
       </span>
       <button

@@ -152,10 +152,15 @@ export default function Board() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex-1 flex justify-center gap-5 overflow-x-auto p-6 pb-4">
-        {filteredColumns.map((column, index) => (
-          <KanbanColumn key={column.id} column={column} index={index} isLast={index === filteredColumns.length - 1} />
-        ))}
+      <div className="flex-1 overflow-y-auto md:overflow-x-auto">
+        <div
+          className="flex flex-col md:flex-row gap-3 md:gap-5 p-3 sm:p-4 md:p-6 pb-4"
+          style={{ justifyContent: "safe center" }}
+        >
+          {filteredColumns.map((column, index) => (
+            <KanbanColumn key={column.id} column={column} index={index} isLast={index === filteredColumns.length - 1} />
+          ))}
+        </div>
       </div>
 
       <DragOverlay dropAnimation={{ duration: 150, easing: "ease" }}>

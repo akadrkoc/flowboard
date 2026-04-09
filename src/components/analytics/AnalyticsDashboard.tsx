@@ -119,14 +119,14 @@ export default function AnalyticsDashboard() {
   const onTimeRate = totalCompleted > 0 ? Math.round((totalCompleted / Math.max(allCards.length, 1)) * 100) : 0;
 
   return (
-    <div className="flex-1 overflow-y-auto p-6 space-y-4">
+    <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4">
       <StatCards
         avgCycleTime={avgCycleTime}
         velocity={velocity}
         onTimeRate={onTimeRate}
         totalCompleted={totalCompleted}
       />
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
         <CompletedPerDay data={completedPerDay} />
         <CardsByMember data={cardsByMember} />
       </div>
