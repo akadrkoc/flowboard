@@ -58,21 +58,21 @@ export default function StatCards({
   };
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
       {cards.map((card) => (
         <div
           key={card.key}
-          className="bg-[#fbf6ef] dark:bg-[#1e1e2e] rounded-xl border border-[#ead7c3] dark:border-white/[0.06] p-4"
+          className="bg-[#fbf6ef] dark:bg-[#1e1e2e] rounded-xl border border-[#ead7c3] dark:border-white/[0.06] p-3 sm:p-4"
         >
           <div className="flex items-center gap-2 mb-2">
             <div className={`p-1.5 rounded-lg ${card.bgColor}`}>
               <card.icon className={`w-3.5 h-3.5 ${card.color}`} />
             </div>
-            <span className="text-[11px] text-gray-400 font-medium">
+            <span className="text-[10px] sm:text-[11px] text-gray-400 font-medium truncate">
               {card.label}
             </span>
           </div>
-          <div className="text-xl font-bold text-gray-900 dark:text-white">
+          <div className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
             {card.format(values[card.key])}
           </div>
         </div>

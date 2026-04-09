@@ -78,15 +78,15 @@ export default function Navbar() {
   };
 
   return (
-    <nav className="relative z-50 flex items-center justify-between h-14 px-5 border-b border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef]/80 dark:bg-[#12121a]/80 backdrop-blur-md">
+    <nav className="relative z-50 flex items-center justify-between h-12 sm:h-14 px-3 sm:px-5 border-b border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef]/80 dark:bg-[#12121a]/80 backdrop-blur-md">
       {/* Left: Logo + Sprint */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4 min-w-0">
         <button
           onClick={() => setActiveView("kanban")}
-          className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+          className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0"
         >
           <LayoutGrid className="w-5 h-5 text-violet-400" />
-          <span className="text-[15px] font-bold text-gray-900 dark:text-white tracking-tight">
+          <span className="text-[14px] sm:text-[15px] font-bold text-gray-900 dark:text-white tracking-tight">
             FlowBoard
           </span>
         </button>
@@ -102,7 +102,7 @@ export default function Navbar() {
           {sprintDialogOpen && (
             <div
               ref={sprintDialogRef}
-              className="absolute left-0 top-full mt-2 w-80 rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-[#fbf6ef] dark:bg-[#1e1e2e] shadow-xl z-50 p-3"
+              className="absolute left-0 top-full mt-2 w-[calc(100vw-1.5rem)] sm:w-80 max-w-[20rem] rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-[#fbf6ef] dark:bg-[#1e1e2e] shadow-xl z-50 p-3"
             >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">
@@ -200,7 +200,7 @@ export default function Navbar() {
       </button>
 
       {/* Right: Members + User + Theme toggle */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Member avatars */}
         <div className="relative">
           <button
@@ -243,7 +243,7 @@ export default function Navbar() {
           {memberDialogOpen && (
             <div
               ref={dialogRef}
-              className="absolute right-0 top-full mt-2 w-72 rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-[#fbf6ef] dark:bg-[#1e1e2e] shadow-xl z-50 p-3"
+              className="absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] sm:w-72 max-w-[18rem] rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-[#fbf6ef] dark:bg-[#1e1e2e] shadow-xl z-50 p-3"
             >
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">

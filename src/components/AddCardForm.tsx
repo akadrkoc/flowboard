@@ -97,7 +97,7 @@ export default function AddCardForm({ columnId }: AddCardFormProps) {
       </div>
 
       {/* Priority + Points */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-1">
           {(["low", "med", "high"] as Priority[]).map((p) => (
             <button

@@ -70,8 +70,8 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
   };
 
   return (
-    <div className="flex-shrink-0 flex gap-2">
-      <div className="w-[300px] flex flex-col max-h-full">
+    <div className="flex-shrink-0 flex flex-col md:flex-row gap-2">
+      <div className="w-full md:w-[280px] lg:w-[300px] flex flex-col md:max-h-full">
         {/* Column header */}
         <div className="flex items-center gap-2.5 px-1 mb-3">
           <span
@@ -149,7 +149,7 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
         {/* Cards container */}
         <div
           ref={setNodeRef}
-          className={`flex-1 overflow-y-auto space-y-2 p-1.5 rounded-xl transition-colors duration-200 ${
+          className={`flex-1 md:overflow-y-auto space-y-2 p-1.5 rounded-xl transition-colors duration-200 ${
             isOver ? "bg-[#dce0d9] dark:bg-white/[0.03] ring-1 ring-[#ead7c3] dark:ring-white/[0.06]" : ""
           }`}
           style={{ minHeight: "100px" }}
@@ -174,7 +174,7 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
             const name = prompt("Column name:");
             if (name?.trim()) addColumn(name.trim());
           }}
-          className="flex-shrink-0 w-[300px] h-10 mt-8 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[#ead7c3] dark:border-white/[0.08] text-gray-400 dark:text-gray-500 hover:border-violet-400 dark:hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400 transition-colors text-[12px] font-medium"
+          className="flex-shrink-0 w-full md:w-[280px] lg:w-[300px] h-10 mt-3 md:mt-8 flex items-center justify-center gap-1.5 rounded-lg border-2 border-dashed border-[#ead7c3] dark:border-white/[0.08] text-gray-400 dark:text-gray-500 hover:border-violet-400 dark:hover:border-violet-500 hover:text-violet-500 dark:hover:text-violet-400 transition-colors text-[12px] font-medium"
         >
           <Plus className="w-3.5 h-3.5" />
           Add Column

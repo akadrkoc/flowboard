@@ -88,7 +88,7 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
         onPointerMove={handlePointerMove}
         onClick={handleClick}
         className={`
-          group relative rounded-lg border border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#1e1e2e] p-3.5
+          group relative rounded-lg border border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#1e1e2e] p-3 sm:p-3.5
           shadow-sm hover:shadow-md hover:border-[#d4c4ae] dark:hover:border-white/[0.12]
           transition-all duration-150 cursor-grab active:cursor-grabbing
           ${isDraggingOverlay ? "shadow-xl shadow-black/20 dark:shadow-black/30 ring-1 ring-[#ead7c3] dark:ring-white/10" : ""}
@@ -122,8 +122,8 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
         )}
 
         {/* Bottom row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="flex items-center justify-between flex-wrap gap-y-1.5">
+          <div className="flex items-center gap-2.5 flex-wrap">
             {/* Priority dot */}
             <span
               className={`w-2 h-2 rounded-full ${priorityColors[card.priority]}`}

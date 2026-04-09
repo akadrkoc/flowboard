@@ -90,7 +90,7 @@ export default function CardDetailModal({ card, open, onOpenChange }: CardDetail
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md max-h-[90vh] sm:max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit Card</DialogTitle>
           <DialogDescription>Update card details or delete it.</DialogDescription>
@@ -147,7 +147,7 @@ export default function CardDetailModal({ card, open, onOpenChange }: CardDetail
           </div>
 
           {/* Priority + Story Points */}
-          <div className="flex items-start gap-6">
+          <div className="flex flex-col sm:flex-row items-start gap-4 sm:gap-6">
             <div>
               <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">
                 Priority
