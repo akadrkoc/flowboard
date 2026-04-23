@@ -8,6 +8,7 @@ import Board from "@/components/Board";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
 import UndoToast from "@/components/UndoToast";
+import ErrorToast from "@/components/ErrorToast";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 
 const GET_BOARDS_QUERY = `query { boards { id name } }`;
@@ -102,6 +103,7 @@ export default function Home() {
         </>
       )}
       <UndoToast />
+      <ErrorToast />
     </div>
   );
 }

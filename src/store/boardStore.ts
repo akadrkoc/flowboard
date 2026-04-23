@@ -33,7 +33,7 @@ interface BoardState {
   addColumn: (name: string) => void;
   renameColumn: (columnId: string, name: string) => void;
   deleteColumn: (columnId: string) => void;
-  comments: { id: string; text: string; cardId: string; authorName: string; authorImage?: string; createdAt: string }[];
+  commentsByCard: Record<string, { id: string; text: string; cardId: string; authorName: string; authorImage?: string; createdAt: string }[]>;
   loadComments: (cardId: string) => Promise<void>;
   addComment: (cardId: string, text: string) => void;
   members: { id: string; name: string; email: string; image?: string }[];
@@ -45,6 +45,9 @@ interface BoardState {
   loadSprints: () => Promise<void>;
   createSprint: (name: string, startDate: string, endDate: string) => Promise<void>;
   completeSprint: (sprintId: string) => Promise<void>;
+  errors: { id: string; message: string }[];
+  pushError: (message: string) => void;
+  dismissError: (id: string) => void;
 }
 
 // GraphQL query strings
@@ -264,6 +267,12 @@ const COMPLETE_SPRINT_MUTATION = `
   }
 `;
 
+function errMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string") return err;
+  return fallback;
+}
+
 export const useBoardStore = create<BoardState>((set, get) => ({
   boardId: null,
   columns: [],
@@ -274,10 +283,24 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   filterPriority: null,
   filterLabel: null,
   lastDeletedCard: null,
-  comments: [],
+  commentsByCard: {},
   members: [],
   activeSprint: null,
   sprints: [],
+  errors: [],
+
+  pushError: (message: string) => {
+    const id = `err-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    set((state) => ({ errors: [...state.errors, { id, message }] }));
+    if (typeof window !== "undefined") {
+      window.setTimeout(() => {
+        set((state) => ({ errors: state.errors.filter((e) => e.id !== id) }));
+      }, 5000);
+    }
+  },
+
+  dismissError: (id: string) =>
+    set((state) => ({ errors: state.errors.filter((e) => e.id !== id) })),
 
   loadBoard: async (boardId: string) => {
     set({ loading: true });
@@ -323,7 +346,18 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     if (!boardId) return;
 
     const socket = getSocket();
-    socket.emit("join-board", boardId);
+
+    // Her baglantida (ilk bagalnti + reconnect'ler) board room'una katil.
+    // Socket.io reconnect'te listener'lar korunur ama server tarafi room
+    // uyelikleri kaybolur; bu nedenle yeni bir `connect` her tetiklendiginde
+    // `join-board` emit etmemiz sart. Aksi halde kart/update/yorum event'leri
+    // gelmez ve kullanici "guncellemeler gelmiyor" zanneder.
+    const joinBoard = () => {
+      const currentBoardId = get().boardId;
+      if (currentBoardId) socket.emit("join-board", currentBoardId);
+    };
+    socket.on("connect", joinBoard);
+    if (socket.connected) joinBoard();
 
     // Diğer client'lardan gelen event'leri dinle
     socket.on("card-moved", (data: { cardId: string; toColumnId: string; newIndex: number }) => {
@@ -334,10 +368,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         }));
 
         let movedCard: Card | undefined;
+        let fromColumnId: string | undefined;
         for (const col of columns) {
           const idx = col.cards.findIndex((c) => c.id === data.cardId);
           if (idx !== -1) {
             movedCard = { ...col.cards[idx] };
+            fromColumnId = col.id;
             col.cards.splice(idx, 1);
             break;
           }
@@ -350,11 +386,16 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
         movedCard.columnId = data.toColumnId;
 
-        const lastCol = columns[columns.length - 1];
-        if (lastCol && lastCol.id === data.toColumnId) {
-          movedCard.completedAt = new Date().toISOString();
-        } else {
-          movedCard.completedAt = undefined;
+        // completedAt yalniz gercekten kolon degisiyorsa guncellenmeli;
+        // aksi halde Done icinde reorder eden bir kart her hareketinde
+        // "yeni tamamlandi" gibi gozukur ve analytics bozulur.
+        if (fromColumnId !== data.toColumnId) {
+          const lastCol = columns[columns.length - 1];
+          if (lastCol && lastCol.id === data.toColumnId) {
+            movedCard.completedAt = new Date().toISOString();
+          } else {
+            movedCard.completedAt = undefined;
+          }
         }
 
         const clampedIndex = Math.min(data.newIndex, targetCol.cards.length);
@@ -419,12 +460,19 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     socket.on("comment-added", (data: { cardId: string; comment: any }) => {
       set((state) => {
-        // Only add if viewing same card's comments
-        if (state.comments.length > 0 && state.comments[0]?.cardId === data.cardId) {
-          if (state.comments.some((c) => c.id === data.comment.id)) return state;
-          return { comments: [...state.comments, data.comment] };
+        const existing = state.commentsByCard[data.cardId];
+        if (!existing) {
+          // O karta ait hic yorum yuklenmemis; kart acildiginda loadComments
+          // hepsini zaten cekecek, simdilik dokunmayalim.
+          return state;
         }
-        return state;
+        if (existing.some((c) => c.id === data.comment.id)) return state;
+        return {
+          commentsByCard: {
+            ...state.commentsByCard,
+            [data.cardId]: [...existing, data.comment],
+          },
+        };
       });
     });
 
@@ -437,7 +485,19 @@ export const useBoardStore = create<BoardState>((set, get) => ({
             .filter((c) => c.id !== data.columnId)
             .map((c) => {
               if (c.id === firstOtherCol?.id && deletedCol) {
-                return { ...c, cards: [...c.cards, ...deletedCol.cards] };
+                // Tasinan kartlar yeni kolonun ID'sini ve ardisik order'lari
+                // almali; aksi halde sonraki moveCard/reorder'da bozuk
+                // bir state ile calisiyoruz.
+                const baseOrder = c.cards.length;
+                const merged = [
+                  ...c.cards,
+                  ...deletedCol.cards.map((card, i) => ({
+                    ...card,
+                    columnId: c.id,
+                    order: baseOrder + i,
+                  })),
+                ];
+                return { ...c, cards: merged };
               }
               return c;
             }),
@@ -454,10 +514,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }));
 
       let movedCard: Card | undefined;
+      let fromColumnId: string | undefined;
       for (const col of columns) {
         const idx = col.cards.findIndex((c) => c.id === cardId);
         if (idx !== -1) {
           movedCard = { ...col.cards[idx] };
+          fromColumnId = col.id;
           col.cards.splice(idx, 1);
           break;
         }
@@ -470,12 +532,15 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
       movedCard.columnId = toColumnId;
 
-      // Set/clear completedAt based on whether target is the last column
-      const lastCol = columns[columns.length - 1];
-      if (lastCol && lastCol.id === toColumnId) {
-        movedCard.completedAt = new Date().toISOString();
-      } else {
-        movedCard.completedAt = undefined;
+      // completedAt'i yalniz gercekten kolon degistiginde guncelle.
+      // Done icinde reorder'larda dokunmazsak orijinal tamamlanma tarihi korunur.
+      if (fromColumnId !== toColumnId) {
+        const lastCol = columns[columns.length - 1];
+        if (lastCol && lastCol.id === toColumnId) {
+          movedCard.completedAt = new Date().toISOString();
+        } else {
+          movedCard.completedAt = undefined;
+        }
       }
 
       const clampedIndex = Math.min(newIndex, targetCol.cards.length);
@@ -499,7 +564,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     const { boardId } = get();
     if (boardId) {
       graphqlFetch(MOVE_CARD_MUTATION, { cardId, toColumnId, newIndex }).catch(
-        (err: unknown) => console.error("Failed to sync moveCard:", err)
+        (err: unknown) => {
+          console.error("Failed to sync moveCard:", err);
+          get().pushError(errMessage(err, "Failed to move card"));
+        }
       );
       getSocket().emit("card-moved", { boardId, cardId, toColumnId, newIndex });
     }
@@ -528,6 +596,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       columnId,
       input: {
         title: cardData.title,
+        description: cardData.description || null,
         labels: cardData.labels,
         priority: cardData.priority,
         dueDate: cardData.dueDate || null,
@@ -564,6 +633,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       })
       .catch((err: unknown) => {
         console.error("Failed to create card:", err);
+        get().pushError(errMessage(err, "Failed to create card"));
         // Hata durumunda temp kartı kaldır
         set((state) => ({
           columns: state.columns.map((col) => ({
@@ -585,27 +655,39 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       })),
     }));
 
-    // API'ye sync + diğer client'lara bildir
-    if (!cardId.startsWith("temp-")) {
-      graphqlFetch(UPDATE_CARD_MUTATION, {
-        cardId,
-        input: {
-          title: updates.title,
-          description: updates.description,
-          labels: updates.labels,
-          priority: updates.priority,
-          dueDate: updates.dueDate,
-          storyPoints: updates.storyPoints,
-          assigneeInitials: updates.assigneeInitials,
-          assigneeColor: updates.assigneeColor,
-        },
-      }).catch((err: unknown) =>
-        console.error("Failed to update card:", err)
-      );
-      const { boardId } = get();
-      if (boardId) {
-        getSocket().emit("card-updated", { boardId, cardId, updates });
+    if (cardId.startsWith("temp-")) return;
+
+    // Yalnizca gonderilen alanlari iletelim; aksi halde undefined degerler
+    // sanitize asamasinda atilip DB'de field silinmese bile network'te
+    // gereksiz null'lar tasimak yerine minimal payload tercih ediliyor.
+    const allowedKeys = [
+      "title",
+      "description",
+      "labels",
+      "priority",
+      "dueDate",
+      "storyPoints",
+      "assigneeInitials",
+      "assigneeColor",
+    ] as const;
+    const input: Record<string, unknown> = {};
+    for (const key of allowedKeys) {
+      const value = (updates as Record<string, unknown>)[key];
+      if (value !== undefined) input[key] = value;
+    }
+
+    if (Object.keys(input).length === 0) return;
+
+    graphqlFetch(UPDATE_CARD_MUTATION, { cardId, input }).catch(
+      (err: unknown) => {
+        console.error("Failed to update card:", err);
+        get().pushError(errMessage(err, "Failed to update card"));
       }
+    );
+
+    const { boardId } = get();
+    if (boardId) {
+      getSocket().emit("card-updated", { boardId, cardId, updates: input });
     }
   },
 
@@ -632,9 +714,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
     // API'ye sync + diğer client'lara bildir
     if (!cardId.startsWith("temp-")) {
-      graphqlFetch(DELETE_CARD_MUTATION, { cardId }).catch((err: unknown) =>
-        console.error("Failed to delete card:", err)
-      );
+      graphqlFetch(DELETE_CARD_MUTATION, { cardId }).catch((err: unknown) => {
+        console.error("Failed to delete card:", err);
+        get().pushError(errMessage(err, "Failed to delete card"));
+      });
       const { boardId } = get();
       if (boardId) {
         getSocket().emit("card-deleted", { boardId, cardId });
@@ -646,16 +729,21 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     const { lastDeletedCard, boardId } = get();
     if (!lastDeletedCard) return;
 
-    // Optimistic: add card back to column
+    // Kartin hedef kolondaki siradaki order'i hesapla ve optimistic ekle.
     set((state) => ({
       columns: state.columns.map((col) => {
         if (col.id !== lastDeletedCard.columnId) return col;
-        return { ...col, cards: [...col.cards, lastDeletedCard] };
+        const restored = { ...lastDeletedCard, order: col.cards.length };
+        return { ...col, cards: [...col.cards, restored] };
       }),
       lastDeletedCard: null,
     }));
 
-    // API restore
+    // temp- prefix'li kartlar hic DB'ye yazilmamis olabilir (kullanici
+    // create mutation'i donmeden sildiyse). Bu durumda server cagirmaya
+    // gerek yok — lokal restore yeterli.
+    if (lastDeletedCard.id.startsWith("temp-")) return;
+
     graphqlFetch(RESTORE_CARD_MUTATION, { cardId: lastDeletedCard.id })
       .then(() => {
         if (boardId) {
@@ -665,7 +753,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
           });
         }
       })
-      .catch((err: unknown) => console.error("Failed to restore card:", err));
+      .catch((err: unknown) => {
+        console.error("Failed to restore card:", err);
+        get().pushError(errMessage(err, "Failed to restore card"));
+      });
   },
 
   dismissUndo: () => set({ lastDeletedCard: null }),
@@ -674,7 +765,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const data: any = await graphqlFetch(GET_COMMENTS_QUERY, { cardId });
-      set({ comments: data.comments || [] });
+      set((state) => ({
+        commentsByCard: {
+          ...state.commentsByCard,
+          [cardId]: data.comments || [],
+        },
+      }));
     } catch (err) {
       console.error("Failed to load comments:", err);
     }
@@ -685,13 +781,24 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .then((data: any) => {
         const comment = data.addComment;
-        set((state) => ({ comments: [...state.comments, comment] }));
+        set((state) => {
+          const existing = state.commentsByCard[cardId] ?? [];
+          return {
+            commentsByCard: {
+              ...state.commentsByCard,
+              [cardId]: [...existing, comment],
+            },
+          };
+        });
         const { boardId } = get();
         if (boardId) {
           getSocket().emit("comment-added", { boardId, cardId, comment });
         }
       })
-      .catch((err: unknown) => console.error("Failed to add comment:", err));
+      .catch((err: unknown) => {
+        console.error("Failed to add comment:", err);
+        get().pushError(errMessage(err, "Failed to add comment"));
+      });
   },
 
   setSearchQuery: (query) => set({ searchQuery: query }),
@@ -730,7 +837,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       members: state.members.filter((m) => m.id !== userId),
     }));
     graphqlFetch(REMOVE_MEMBER_MUTATION, { boardId, userId }).catch(
-      (err: unknown) => console.error("Failed to remove member:", err)
+      (err: unknown) => {
+        console.error("Failed to remove member:", err);
+        get().pushError(errMessage(err, "Failed to remove member"));
+      }
     );
   },
 
@@ -756,6 +866,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       })
       .catch((err: unknown) => {
         console.error("Failed to add column:", err);
+        get().pushError(errMessage(err, "Failed to add column"));
         set((state) => ({ columns: state.columns.filter((c) => c.id !== tempId) }));
       });
   },
@@ -768,7 +879,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }));
 
     graphqlFetch(RENAME_COLUMN_MUTATION, { columnId, name }).catch(
-      (err: unknown) => console.error("Failed to rename column:", err)
+      (err: unknown) => {
+        console.error("Failed to rename column:", err);
+        get().pushError(errMessage(err, "Failed to rename column"));
+      }
     );
     const { boardId } = get();
     if (boardId) {
@@ -833,20 +947,34 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     const deletedCol = columns.find((c) => c.id === columnId);
     const firstOtherCol = columns.find((c) => c.id !== columnId);
 
-    // Move cards to first other column
+    // Move cards to first other column — tasinirken columnId ve order'larini
+    // dogru sekilde guncellemek sart; aksi halde sonraki drag-drop sirasinda
+    // eski columnId ile moveCard mutation gonderilir.
     set((state) => ({
       columns: state.columns
         .filter((c) => c.id !== columnId)
         .map((c) => {
           if (c.id === firstOtherCol?.id && deletedCol) {
-            return { ...c, cards: [...c.cards, ...deletedCol.cards] };
+            const baseOrder = c.cards.length;
+            const merged = [
+              ...c.cards,
+              ...deletedCol.cards.map((card, i) => ({
+                ...card,
+                columnId: c.id,
+                order: baseOrder + i,
+              })),
+            ];
+            return { ...c, cards: merged };
           }
           return c;
         }),
     }));
 
     graphqlFetch(DELETE_COLUMN_MUTATION, { columnId }).catch(
-      (err: unknown) => console.error("Failed to delete column:", err)
+      (err: unknown) => {
+        console.error("Failed to delete column:", err);
+        get().pushError(errMessage(err, "Failed to delete column"));
+      }
     );
     if (boardId) {
       getSocket().emit("column-deleted", { boardId, columnId });
