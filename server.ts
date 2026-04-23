@@ -1,9 +1,10 @@
 import { createServer } from "http";
 import { parse } from "url";
 import next from "next";
-import { Server as SocketIOServer } from "socket.io";
+import { Server as SocketIOServer, Socket } from "socket.io";
 import { decode } from "next-auth/jwt";
 import mongoose from "mongoose";
+import { rateLimit, sweepExpired } from "./src/lib/rateLimit";
 
 const dev = process.env.NODE_ENV !== "production";
 const app = next({ dev });
@@ -30,6 +31,21 @@ app.prepare().then(() => {
       origin: allowedOrigin,
       credentials: true,
     },
+  });
+
+  // Connection-level rate limit: bir IP dakikada en fazla N connect denemesi yapabilir.
+  io.use((socket, next) => {
+    sweepExpired();
+    const fwd = socket.handshake.headers["x-forwarded-for"];
+    const ip =
+      (Array.isArray(fwd) ? fwd[0] : fwd?.split(",")[0])?.trim() ||
+      socket.handshake.address ||
+      "anon";
+    const r = rateLimit(`ws-conn:${ip}`, { limit: 30, windowMs: 60_000 });
+    if (!r.ok) {
+      return next(new Error("Too many connection attempts"));
+    }
+    next();
   });
 
   // JWT auth middleware
@@ -75,11 +91,33 @@ app.prepare().then(() => {
     }
   });
 
+  // Her socket icin event-level sliding window (userId + event ismi bazli).
+  // Broadcast spam'ini veya hatali client'tan kaynakli loop'lari durdurur.
+  function withEventRateLimit<T>(
+    socket: Socket,
+    event: string,
+    handler: (data: T) => void,
+    limit = 120
+  ) {
+    return (data: T) => {
+      const userId = socket.data.userId || socket.id;
+      const r = rateLimit(`ws-evt:${userId}:${event}`, {
+        limit,
+        windowMs: 60_000,
+      });
+      if (!r.ok) {
+        socket.emit("error", { message: `Rate limit exceeded for ${event}` });
+        return;
+      }
+      handler(data);
+    };
+  }
+
   io.on("connection", (socket) => {
     console.log(`[Socket.io] Client connected: ${socket.id} (user: ${socket.data.userId})`);
 
     // Board odasına katıl — membership check
-    socket.on("join-board", async (boardId: string) => {
+    socket.on("join-board", withEventRateLimit<string>(socket, "join-board", async (boardId: string) => {
       try {
         const Board = getBoardModel();
         if (Board) {
@@ -103,47 +141,47 @@ app.prepare().then(() => {
 
       socket.join(`board:${boardId}`);
       console.log(`[Socket.io] ${socket.id} joined board:${boardId}`);
-    });
+    }));
 
     // Kart taşındı
-    socket.on("card-moved", (data: { boardId: string; cardId: string; toColumnId: string; newIndex: number }) => {
+    socket.on("card-moved", withEventRateLimit<{ boardId: string; cardId: string; toColumnId: string; newIndex: number }>(socket, "card-moved", (data) => {
       socket.to(`board:${data.boardId}`).emit("card-moved", data);
-    });
+    }, 240));
 
     // Kart eklendi
-    socket.on("card-created", (data: { boardId: string; card: unknown }) => {
+    socket.on("card-created", withEventRateLimit<{ boardId: string; card: unknown }>(socket, "card-created", (data) => {
       socket.to(`board:${data.boardId}`).emit("card-created", data);
-    });
+    }));
 
     // Kart güncellendi
-    socket.on("card-updated", (data: { boardId: string; cardId: string; updates: unknown }) => {
+    socket.on("card-updated", withEventRateLimit<{ boardId: string; cardId: string; updates: unknown }>(socket, "card-updated", (data) => {
       socket.to(`board:${data.boardId}`).emit("card-updated", data);
-    });
+    }, 240));
 
     // Kart silindi
-    socket.on("card-deleted", (data: { boardId: string; cardId: string }) => {
+    socket.on("card-deleted", withEventRateLimit<{ boardId: string; cardId: string }>(socket, "card-deleted", (data) => {
       socket.to(`board:${data.boardId}`).emit("card-deleted", data);
-    });
+    }));
 
     // Kolon eklendi
-    socket.on("column-added", (data: { boardId: string; column: unknown }) => {
+    socket.on("column-added", withEventRateLimit<{ boardId: string; column: unknown }>(socket, "column-added", (data) => {
       socket.to(`board:${data.boardId}`).emit("column-added", data);
-    });
+    }));
 
     // Kolon yeniden adlandırıldı
-    socket.on("column-renamed", (data: { boardId: string; columnId: string; name: string }) => {
+    socket.on("column-renamed", withEventRateLimit<{ boardId: string; columnId: string; name: string }>(socket, "column-renamed", (data) => {
       socket.to(`board:${data.boardId}`).emit("column-renamed", data);
-    });
+    }));
 
     // Kolon silindi
-    socket.on("column-deleted", (data: { boardId: string; columnId: string }) => {
+    socket.on("column-deleted", withEventRateLimit<{ boardId: string; columnId: string }>(socket, "column-deleted", (data) => {
       socket.to(`board:${data.boardId}`).emit("column-deleted", data);
-    });
+    }));
 
     // Yorum eklendi
-    socket.on("comment-added", (data: { boardId: string; cardId: string; comment: unknown }) => {
+    socket.on("comment-added", withEventRateLimit<{ boardId: string; cardId: string; comment: unknown }>(socket, "comment-added", (data) => {
       socket.to(`board:${data.boardId}`).emit("comment-added", data);
-    });
+    }));
 
     socket.on("disconnect", () => {
       console.log(`[Socket.io] Client disconnected: ${socket.id}`);
