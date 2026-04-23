@@ -7,6 +7,30 @@ import CardsByMember from "./CardsByMember";
 import SprintBurndown from "./SprintBurndown";
 import StatCards from "./StatCards";
 
+// Sayi turune zorlama, NaN halinde 0 done.
+function safeNumber(n: number): number {
+  return Number.isFinite(n) ? n : 0;
+}
+
+function startOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
+function endOfDay(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(23, 59, 59, 999);
+  return x;
+}
+
+function daysBetween(a: Date, b: Date): number {
+  return Math.max(
+    1,
+    Math.round((startOfDay(b).getTime() - startOfDay(a).getTime()) / 86_400_000)
+  );
+}
+
 export default function AnalyticsDashboard() {
   const columns = useBoardStore((s) => s.columns);
   const activeSprint = useBoardStore((s) => s.activeSprint);
@@ -16,107 +40,175 @@ export default function AnalyticsDashboard() {
     [columns]
   );
 
-  const lastColumn = columns[columns.length - 1];
-  const doneCards = lastColumn?.cards || [];
+  // ---------- Zaman araligi ----------
+  // Aktif sprint varsa onun [start, end] araligini; yoksa son 14 gunu kullan.
+  // Sprint gelecekte ya da gecmiste de olabilir; ideal cizgisini burada
+  // gercekten hesaplayabilmek icin start <= end varsayiyoruz.
+  const range = useMemo(() => {
+    if (activeSprint?.startDate && activeSprint?.endDate) {
+      const start = startOfDay(new Date(activeSprint.startDate));
+      const end = endOfDay(new Date(activeSprint.endDate));
+      return {
+        start,
+        end,
+        days: daysBetween(start, end),
+        isSprint: true,
+        label: activeSprint.name,
+      };
+    }
+    const end = endOfDay(new Date());
+    const start = startOfDay(new Date(Date.now() - 13 * 86_400_000));
+    return {
+      start,
+      end,
+      days: 14,
+      isSprint: false,
+      label: "Last 14 days",
+    };
+  }, [activeSprint]);
 
-  // --- Completed per Day (son 14 gün, gerçek completedAt verisinden) ---
+  const completedInRange = useMemo(
+    () =>
+      allCards.filter((c) => {
+        if (!c.completedAt) return false;
+        const t = new Date(c.completedAt).getTime();
+        return t >= range.start.getTime() && t <= range.end.getTime();
+      }),
+    [allCards, range]
+  );
+
+  // ---------- Completed per day ----------
+  // Gun sayisi abartiya kacmasin diye 60 gun ust sinir koyuyoruz;
+  // 3-4 haftadan uzun sprint'leri destekler ama sinirsiz degil.
   const completedPerDay = useMemo(() => {
-    const days: { date: string; count: number }[] = [];
-    const now = new Date();
+    const result: { date: string; count: number }[] = [];
+    const totalDays = Math.min(range.days, 60);
 
-    // completedAt'i olan tüm kartları bul (hangi kolonda olursa olsun)
-    const completedCards = allCards.filter((c) => c.completedAt);
-
-    for (let i = 13; i >= 0; i--) {
-      const d = new Date(now);
-      d.setDate(d.getDate() - i);
-      const dayStr = d.toISOString().slice(0, 10); // "YYYY-MM-DD"
-      const label = d.toLocaleDateString("en-US", {
+    for (let i = totalDays - 1; i >= 0; i--) {
+      const day = new Date(range.end);
+      day.setDate(day.getDate() - i);
+      const key = startOfDay(day).toISOString().slice(0, 10);
+      const label = day.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
       });
-
-      const count = completedCards.filter((c) => {
-        const completedDate = new Date(c.completedAt!).toISOString().slice(0, 10);
-        return completedDate === dayStr;
-      }).length;
-
-      days.push({ date: label, count });
+      const count = completedInRange.filter(
+        (c) =>
+          startOfDay(new Date(c.completedAt!)).toISOString().slice(0, 10) ===
+          key
+      ).length;
+      result.push({ date: label, count });
     }
 
-    return days;
-  }, [allCards]);
+    return result;
+  }, [completedInRange, range]);
 
-  // --- Cards by Member ---
+  // ---------- Cards by Member ----------
+  // Workload: board genelinde aktif kartlar. Son kolondakileri (Done)
+  // sayim disi birakalim ki "kimin uzerinde ne var" gercek anlamda cikar.
   const cardsByMember = useMemo(() => {
+    const lastColId = columns[columns.length - 1]?.id;
+    const activeCards = columns
+      .filter((col) => col.id !== lastColId)
+      .flatMap((col) => col.cards);
     const map = new Map<string, number>();
-    allCards.forEach((card) => {
+    activeCards.forEach((card) => {
       const name = card.assigneeInitials || "Unassigned";
       map.set(name, (map.get(name) || 0) + 1);
     });
     return Array.from(map.entries()).map(([name, count]) => ({ name, count }));
-  }, [allCards]);
+  }, [columns]);
 
-  // --- Sprint Burndown (uses active sprint dates if available) ---
+  // ---------- Burndown ----------
+  // Aktif sprint yoksa gosterilecek veri hazirlamiyoruz; UI empty state cizecek.
   const burndownData = useMemo(() => {
-    const totalPoints = allCards.reduce((sum, c) => sum + c.storyPoints, 0);
+    if (!range.isSprint) return [];
+
+    const totalPoints = allCards.reduce((sum, c) => sum + safeNumber(c.storyPoints), 0);
     const data: { day: string; remaining: number; ideal: number }[] = [];
-    const completedCards = allCards.filter((c) => c.completedAt);
+    const todayStart = startOfDay(new Date()).getTime();
 
-    let sprintStart: Date;
-    let sprintEnd: Date;
-    let sprintDays: number;
-
-    if (activeSprint?.startDate && activeSprint?.endDate) {
-      sprintStart = new Date(activeSprint.startDate);
-      sprintEnd = new Date(activeSprint.endDate);
-      sprintDays = Math.max(1, Math.ceil((sprintEnd.getTime() - sprintStart.getTime()) / (1000 * 60 * 60 * 24)));
-    } else {
-      const now = new Date();
-      sprintDays = 10;
-      sprintStart = new Date(now);
-      sprintStart.setDate(sprintStart.getDate() - sprintDays);
-      sprintEnd = now;
-    }
-
-    for (let i = 0; i <= sprintDays; i++) {
-      const ideal = Math.round(totalPoints - (totalPoints / sprintDays) * i);
-
-      const dayEnd = new Date(sprintStart);
+    for (let i = 0; i <= range.days; i++) {
+      const dayEnd = new Date(range.start);
       dayEnd.setDate(dayEnd.getDate() + i);
       dayEnd.setHours(23, 59, 59, 999);
 
-      const pointsBurned = completedCards
-        .filter((c) => new Date(c.completedAt!) <= dayEnd)
-        .reduce((sum, c) => sum + c.storyPoints, 0);
+      // Ideal dogrusu lineer: her gun totalPoints / sprintDays kadar burn.
+      const ideal = Math.max(0, Math.round(totalPoints - (totalPoints / range.days) * i));
+
+      let remaining: number;
+      if (dayEnd.getTime() > todayStart + 86_399_999) {
+        // Gelecek gunler icin henuz bir burn olmadi; remaining bugunku
+        // remaining ile sabitlensin (duz cizgi olarak gorunsun, yoksa
+        // kullaniciyi "sprint tamamlandi" illuzyonu ile yanilatabilir).
+        const burnedToToday = allCards
+          .filter((c) => {
+            if (!c.completedAt) return false;
+            const t = new Date(c.completedAt).getTime();
+            return t >= range.start.getTime() && t <= todayStart + 86_399_999;
+          })
+          .reduce((sum, c) => sum + safeNumber(c.storyPoints), 0);
+        remaining = Math.max(0, totalPoints - burnedToToday);
+      } else {
+        const burned = allCards
+          .filter((c) => {
+            if (!c.completedAt) return false;
+            const t = new Date(c.completedAt).getTime();
+            // Sadece sprint baslangicindan sonra tamamlanmalar burndown'a dahil.
+            return t >= range.start.getTime() && t <= dayEnd.getTime();
+          })
+          .reduce((sum, c) => sum + safeNumber(c.storyPoints), 0);
+        remaining = Math.max(0, totalPoints - burned);
+      }
 
       data.push({
-        day: `Day ${i}`,
-        remaining: Math.max(0, totalPoints - pointsBurned),
-        ideal: Math.max(0, ideal),
+        day: `Day ${i + 1}`,
+        remaining,
+        ideal,
       });
     }
 
     return data;
-  }, [allCards, activeSprint]);
+  }, [allCards, range]);
 
-  // --- Stat Cards ---
-  const totalCompleted = doneCards.length;
-  const velocity = doneCards.reduce((sum, c) => sum + c.storyPoints, 0);
-  // Gerçek cycle time: completedAt - createdAt ortalaması (gün cinsinden)
-  const avgCycleTime = useMemo(() => {
-    const cardsWithBothDates = allCards.filter((c) => c.completedAt && c.createdAt);
-    if (cardsWithBothDates.length === 0) return 0;
+  // ---------- Stat cards ----------
+  const velocity = useMemo(
+    () => completedInRange.reduce((sum, c) => sum + safeNumber(c.storyPoints), 0),
+    [completedInRange]
+  );
 
-    const totalDays = cardsWithBothDates.reduce((sum, c) => {
-      const created = new Date(c.createdAt!).getTime();
+  const totalCompleted = completedInRange.length;
+
+  // On-Time Rate: dueDate'i olan ve bu aralikta tamamlanan kartlardan,
+  // completedAt <= dueDate olanlarin orani. Boyle kartlar yoksa N/A (0).
+  const onTimeRate = useMemo(() => {
+    const withDue = completedInRange.filter((c) => c.dueDate);
+    if (withDue.length === 0) return 0;
+    const onTime = withDue.filter((c) => {
       const completed = new Date(c.completedAt!).getTime();
-      return sum + (completed - created) / (1000 * 60 * 60 * 24);
-    }, 0);
+      // dueDate "YYYY-MM-DD" formatinda; gunun sonuna kadar toleransli sayalim.
+      const due = endOfDay(new Date(c.dueDate + "T00:00:00")).getTime();
+      return completed <= due;
+    }).length;
+    return Math.round((onTime / withDue.length) * 100);
+  }, [completedInRange]);
 
-    return Math.round((totalDays / cardsWithBothDates.length) * 10) / 10;
-  }, [allCards]);
-  const onTimeRate = totalCompleted > 0 ? Math.round((totalCompleted / Math.max(allCards.length, 1)) * 100) : 0;
+  const avgCycleTime = useMemo(() => {
+    const durations: number[] = [];
+    for (const c of completedInRange) {
+      if (!c.createdAt || !c.completedAt) continue;
+      const created = new Date(c.createdAt).getTime();
+      const completed = new Date(c.completedAt).getTime();
+      // Invalid Date, negatif veya NaN degerleri atla.
+      if (!Number.isFinite(created) || !Number.isFinite(completed)) continue;
+      const days = (completed - created) / 86_400_000;
+      if (!Number.isFinite(days) || days < 0) continue;
+      durations.push(days);
+    }
+    if (durations.length === 0) return 0;
+    const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+    return Math.round(avg * 10) / 10;
+  }, [completedInRange]);
 
   return (
     <div className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6 space-y-3 sm:space-y-4">
@@ -125,12 +217,17 @@ export default function AnalyticsDashboard() {
         velocity={velocity}
         onTimeRate={onTimeRate}
         totalCompleted={totalCompleted}
+        scopeLabel={range.label}
       />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-4">
-        <CompletedPerDay data={completedPerDay} />
+        <CompletedPerDay data={completedPerDay} scopeLabel={range.label} />
         <CardsByMember data={cardsByMember} />
       </div>
-      <SprintBurndown data={burndownData} />
+      <SprintBurndown
+        data={burndownData}
+        isActiveSprint={range.isSprint}
+        sprintName={range.isSprint ? range.label : null}
+      />
     </div>
   );
 }

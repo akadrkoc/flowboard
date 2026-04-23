@@ -12,13 +12,39 @@ import {
 
 interface Props {
   data: { day: string; remaining: number; ideal: number }[];
+  isActiveSprint?: boolean;
+  sprintName?: string | null;
 }
 
-export default function SprintBurndown({ data }: Props) {
+export default function SprintBurndown({
+  data,
+  isActiveSprint = true,
+  sprintName,
+}: Props) {
+  const title = sprintName ? `Sprint Burndown — ${sprintName}` : "Sprint Burndown";
+
+  if (!isActiveSprint || data.length === 0) {
+    return (
+      <div className="bg-[#fbf6ef] dark:bg-[#1e1e2e] rounded-xl border border-[#ead7c3] dark:border-white/[0.06] p-4 sm:p-5">
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4">
+          Sprint Burndown
+        </h3>
+        <div className="h-[180px] sm:h-[220px] flex flex-col items-center justify-center text-center gap-1">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            No active sprint
+          </p>
+          <p className="text-[11px] text-gray-400 dark:text-gray-500">
+            Create a sprint to see burndown
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#fbf6ef] dark:bg-[#1e1e2e] rounded-xl border border-[#ead7c3] dark:border-white/[0.06] p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4">
-        Sprint Burndown
+        {title}
       </h3>
       <div className="h-[180px] sm:h-[220px]">
         <ResponsiveContainer width="100%" height="100%">
