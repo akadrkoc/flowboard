@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Trash2, Send, MessageSquare } from "lucide-react";
 import { useBoardStore } from "@/store/boardStore";
 import type { Card as CardType, Priority } from "@/types/board";
@@ -23,7 +23,12 @@ interface CardDetailModalProps {
 export default function CardDetailModal({ card, open, onOpenChange }: CardDetailModalProps) {
   const updateCard = useBoardStore((s) => s.updateCard);
   const deleteCard = useBoardStore((s) => s.deleteCard);
-  const comments = useBoardStore((s) => s.comments);
+  // Zustand v5 useSyncExternalStore kullandigi icin selector'dan her cagride
+  // farkli referansli yeni bir array dondurmek (ornek: `?? []`) sonsuz
+  // re-render tetikler. Ham degeri alip tuketim noktasinda useMemo ile
+  // stabil bir fallback uretiyoruz.
+  const rawComments = useBoardStore((s) => s.commentsByCard[card.id]);
+  const comments = useMemo(() => rawComments ?? [], [rawComments]);
   const loadComments = useBoardStore((s) => s.loadComments);
   const addComment = useBoardStore((s) => s.addComment);
 

@@ -118,30 +118,21 @@ export default function Board() {
       if (!over) return;
 
       const activeId = active.id as string;
-      const overId = over.id as string;
 
-      if (activeId === overId) return;
+      // Drag bitince kartin son lokasyonunu bul ve onu server'a iletelim.
+      // handleDragOver zaten client state'i optimistic olarak guncelledigi
+      // icin current position guvenilir kaynaktir. Bu yaklasim, kullanici
+      // yeni kolonun BOS alanina biraktiginda da (over.id = column.id,
+      // overIdx = -1) moveCard'in cagrilmasini garanti eder.
+      const currentCol = findColumnByCardId(activeId);
+      if (!currentCol) return;
 
-      const activeCol = findColumnByCardId(activeId);
-      const overCol =
-        columns.find((c) => c.id === overId) || findColumnByCardId(overId);
+      const currentIdx = currentCol.cards.findIndex((c) => c.id === activeId);
+      if (currentIdx < 0) return;
 
-      if (!activeCol || !overCol) return;
-
-      if (activeCol.id === overCol.id) {
-        // Reorder within same column
-        const overIdx = overCol.cards.findIndex((c) => c.id === overId);
-        if (overIdx >= 0) {
-          moveCard(activeId, overCol.id, overIdx);
-        }
-      } else {
-        // Move to different column (already handled in dragOver, finalize)
-        const overIdx = overCol.cards.findIndex((c) => c.id === overId);
-        const newIndex = overIdx >= 0 ? overIdx : overCol.cards.length;
-        moveCard(activeId, overCol.id, newIndex);
-      }
+      moveCard(activeId, currentCol.id, currentIdx);
     },
-    [columns, findColumnByCardId, moveCard]
+    [findColumnByCardId, moveCard]
   );
 
   return (
