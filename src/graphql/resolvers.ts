@@ -187,6 +187,22 @@ export const resolvers = {
 
       await requireBoardMember(ctx, card.boardId.toString());
 
+      // Security: target column must belong to the same board as the card.
+      // Without this a malicious client could POST { toColumnId: <another board's column id> }
+      // and smuggle a card into a board the attacker is not a member of.
+      const toColumn = await Column.findById(toColumnId).lean();
+      if (!toColumn) {
+        throw new GraphQLError("Target column not found", { extensions: { code: "NOT_FOUND" } });
+      }
+      if (
+        (toColumn as { boardId: { toString(): string } }).boardId.toString() !==
+        card.boardId.toString()
+      ) {
+        throw new GraphQLError("Cannot move card across boards", {
+          extensions: { code: "FORBIDDEN" },
+        });
+      }
+
       const fromColumnId = card.columnId.toString();
       const isMovingColumns = fromColumnId !== toColumnId;
 
@@ -298,6 +314,14 @@ export const resolvers = {
 
       await requireBoardMember(ctx, card.boardId.toString());
 
+      // Restore ancak daha once silinmis bir kart icin anlamlidir; aksi halde
+      // client yanlis state'te demektir, istegi reddet.
+      if (!card.deletedAt) {
+        throw new GraphQLError("Card is not deleted", {
+          extensions: { code: "BAD_USER_INPUT" },
+        });
+      }
+
       // Restore: clear deletedAt and append to end of column
       const lastCard = await Card.findOne({ columnId: card.columnId, deletedAt: null })
         .sort({ order: -1 })
@@ -360,7 +384,8 @@ export const resolvers = {
       const column = await Column.findById(columnId);
       if (!column) throw new GraphQLError("Column not found", { extensions: { code: "NOT_FOUND" } });
 
-      await requireBoardMember(ctx, column.boardId.toString());
+      // Kolon silme destructive bir operasyon; yalniz board owner'i yapabilsin.
+      await requireBoardOwner(ctx, column.boardId.toString());
 
       // Move cards to first column of the board
       const firstColumn = await Column.findOne({
