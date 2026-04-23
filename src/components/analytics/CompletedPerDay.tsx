@@ -12,13 +12,15 @@ import {
 
 interface Props {
   data: { date: string; count: number }[];
+  scopeLabel?: string;
 }
 
-export default function CompletedPerDay({ data }: Props) {
+export default function CompletedPerDay({ data, scopeLabel }: Props) {
+  const title = scopeLabel ? `Cards Completed — ${scopeLabel}` : "Cards Completed";
   return (
     <div className="bg-[#fbf6ef] dark:bg-[#1e1e2e] rounded-xl border border-[#ead7c3] dark:border-white/[0.06] p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4">
-        Cards Completed (Last 14 Days)
+        {title}
       </h3>
       <div className="h-[180px] sm:h-[220px]">
         <ResponsiveContainer width="100%" height="100%">
