@@ -29,21 +29,40 @@ export default function Board() {
   const searchQuery = useBoardStore((s) => s.searchQuery);
   const filterPriority = useBoardStore((s) => s.filterPriority);
   const filterLabel = useBoardStore((s) => s.filterLabel);
+  const filterAssignee = useBoardStore((s) => s.filterAssignee);
   const [activeCard, setActiveCard] = useState<Card | null>(null);
 
   const filteredColumns = useMemo(() => {
-    if (!searchQuery && !filterPriority && !filterLabel) return columns;
+    if (!searchQuery && !filterPriority && !filterLabel && !filterAssignee) {
+      return columns;
+    }
     const q = searchQuery.toLowerCase();
     return columns.map((col) => ({
       ...col,
       cards: col.cards.filter((card) => {
-        if (q && !card.title.toLowerCase().includes(q) && !(card.description || "").toLowerCase().includes(q)) return false;
+        if (
+          q &&
+          !card.title.toLowerCase().includes(q) &&
+          !(card.description || "").toLowerCase().includes(q)
+        ) {
+          return false;
+        }
         if (filterPriority && card.priority !== filterPriority) return false;
         if (filterLabel && !card.labels.includes(filterLabel)) return false;
+        if (filterAssignee) {
+          // "unassigned" ozel degeri: assignee'si olmayan kartlari goster.
+          // Diger degerler: assignee'nin initials'i (FilterBar bu sekilde
+          // secenek uretiyor).
+          if (filterAssignee === "unassigned") {
+            if (card.assigneeInitials) return false;
+          } else if (card.assigneeInitials !== filterAssignee) {
+            return false;
+          }
+        }
         return true;
       }),
     }));
-  }, [columns, searchQuery, filterPriority, filterLabel]);
+  }, [columns, searchQuery, filterPriority, filterLabel, filterAssignee]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {

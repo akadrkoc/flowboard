@@ -4,8 +4,10 @@ import { useState, useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Card as CardType } from "@/types/board";
-import { Calendar, Flame, AlertCircle } from "lucide-react";
+import { Calendar, Flame, AlertCircle, Check, UserX } from "lucide-react";
 import CardDetailModal from "@/components/CardDetailModal";
+import { useBoardStore } from "@/store/boardStore";
+import { isUnassigned } from "@/lib/assignee";
 
 function getDueDateStatus(dueDate: string): "overdue" | "today" | "normal" {
   if (!dueDate) return "normal";
@@ -41,6 +43,10 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
   const [modalOpen, setModalOpen] = useState(false);
   const didDrag = useRef(false);
 
+  const selectMode = useBoardStore((s) => s.selectMode);
+  const isSelected = useBoardStore((s) => !!s.selectedCardIds[card.id]);
+  const toggleCardSelection = useBoardStore((s) => s.toggleCardSelection);
+
   const {
     attributes,
     listeners,
@@ -51,6 +57,9 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
   } = useSortable({
     id: card.id,
     data: { type: "card", card },
+    // Secim modunda drag-drop'u devre disi birakalim; boylece tikla =>
+    // secim net calisir ve yanlislikla kart tasinmaz.
+    disabled: selectMode,
   });
 
   const style = {
@@ -69,9 +78,12 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
   };
 
   const handleClick = () => {
-    if (!isDragging && !didDrag.current && !isDraggingOverlay) {
-      setModalOpen(true);
+    if (isDragging || didDrag.current || isDraggingOverlay) return;
+    if (selectMode) {
+      toggleCardSelection(card.id);
+      return;
     }
+    setModalOpen(true);
   };
 
   return (
@@ -93,8 +105,23 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
           transition-all duration-150 cursor-grab active:cursor-grabbing
           ${isDraggingOverlay ? "shadow-xl shadow-black/20 dark:shadow-black/30 ring-1 ring-[#ead7c3] dark:ring-white/10" : ""}
           ${isDragging ? "opacity-40" : ""}
+          ${isSelected ? "ring-2 ring-violet-500 dark:ring-violet-400" : ""}
         `}
       >
+        {/* Selection checkbox (only in select mode) */}
+        {selectMode && (
+          <div
+            className={`absolute top-2 right-2 w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
+              isSelected
+                ? "bg-violet-600 border-violet-600"
+                : "bg-[#fbf6ef] dark:bg-[#1e1e2e] border-[#d4c4ae] dark:border-white/20"
+            }`}
+            aria-hidden
+          >
+            {isSelected && <Check className="w-3 h-3 text-white" />}
+          </div>
+        )}
+
         {/* Labels */}
         <div className="flex flex-wrap gap-1.5 mb-2.5">
           {card.labels.map((label) => (
@@ -159,14 +186,23 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
           </div>
 
           {/* Assignee avatar */}
-          <div
-            className={`w-6 h-6 rounded-full ${card.assigneeColor} flex items-center justify-center`}
-            title={card.assigneeInitials}
-          >
-            <span className="text-[10px] font-bold text-white">
-              {card.assigneeInitials}
-            </span>
-          </div>
+          {isUnassigned(card.assigneeInitials) ? (
+            <div
+              className="w-6 h-6 rounded-full bg-[#dce0d9] dark:bg-white/[0.06] flex items-center justify-center border border-dashed border-gray-400/60 dark:border-white/20"
+              title="Unassigned"
+            >
+              <UserX className="w-3 h-3 text-gray-400" />
+            </div>
+          ) : (
+            <div
+              className={`w-6 h-6 rounded-full ${card.assigneeColor} flex items-center justify-center`}
+              title={card.assigneeInitials}
+            >
+              <span className="text-[10px] font-bold text-white">
+                {card.assigneeInitials}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

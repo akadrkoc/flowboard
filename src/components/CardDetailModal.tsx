@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Trash2, Send, MessageSquare } from "lucide-react";
+import { Trash2, Send, MessageSquare, UserX } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useBoardStore } from "@/store/boardStore";
 import type { Card as CardType, Priority } from "@/types/board";
 import {
@@ -11,8 +12,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  initialsOf,
+  colorForId,
+  UNASSIGNED_COLOR,
+  isUnassigned,
+} from "@/lib/assignee";
 
-const LABEL_OPTIONS = ["Frontend", "Backend", "Design", "Auth", "DevOps", "Docs"];
+// Board'da varsayilan olarak onerilen label'lar. Custom label'lar AddCardForm
+// veya bu modalda kullanicinin tipinden da gelir; her iki yerde ayni kurallar.
+const CANONICAL_LABELS = ["Frontend", "Backend", "Design", "Auth", "DevOps", "Docs"];
 
 interface CardDetailModalProps {
   card: CardType;
@@ -31,15 +40,25 @@ export default function CardDetailModal({ card, open, onOpenChange }: CardDetail
   const comments = useMemo(() => rawComments ?? [], [rawComments]);
   const loadComments = useBoardStore((s) => s.loadComments);
   const addComment = useBoardStore((s) => s.addComment);
+  const columns = useBoardStore((s) => s.columns);
+  const members = useBoardStore((s) => s.members);
+  const loadMembers = useBoardStore((s) => s.loadMembers);
+  const { data: session } = useSession();
 
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description || "");
   const [labels, setLabels] = useState<string[]>(card.labels);
+  const [newLabelDraft, setNewLabelDraft] = useState("");
   const [priority, setPriority] = useState<Priority>(card.priority);
   const [storyPoints, setStoryPoints] = useState(card.storyPoints);
   const [dueDate, setDueDate] = useState(card.dueDate || "");
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [commentText, setCommentText] = useState("");
+
+  // Assignee yeniden atama: secilen uyeyi id ile tutuyoruz; "unassigned"
+  // ozel degerdir ve kartin assignee'sinin kaldirilmasi anlamina gelir.
+  // "" ilk acilisa karsilik gelir: su anki karttaki initials ne ise onu koru.
+  const [assigneeId, setAssigneeId] = useState<string>("");
 
   // Sync state when card prop changes
   useEffect(() => {
@@ -50,7 +69,33 @@ export default function CardDetailModal({ card, open, onOpenChange }: CardDetail
     setStoryPoints(card.storyPoints);
     setDueDate(card.dueDate || "");
     setConfirmDelete(false);
+    setNewLabelDraft("");
+    // Kartin mevcut assignee durumunu picker'a yansit.
+    if (isUnassigned(card.assigneeInitials)) {
+      setAssigneeId("unassigned");
+    } else {
+      setAssigneeId(""); // "mevcut" — henuz kullanici degistirmedi
+    }
   }, [card]);
+
+  // Modal ilk acildiginda member listesi bos olabilir.
+  useEffect(() => {
+    if (open && members.length === 0) loadMembers();
+  }, [open, members.length, loadMembers]);
+
+  // Board genelinde kullanimda olan tum label'lari topla.
+  const availableLabels = useMemo(() => {
+    const set = new Set<string>(CANONICAL_LABELS);
+    for (const col of columns) {
+      for (const c of col.cards) {
+        for (const l of c.labels || []) {
+          if (l) set.add(l);
+        }
+      }
+    }
+    for (const l of labels) set.add(l);
+    return Array.from(set);
+  }, [columns, labels]);
 
   // Load comments when modal opens
   useEffect(() => {
@@ -65,8 +110,118 @@ export default function CardDetailModal({ card, open, onOpenChange }: CardDetail
     );
   };
 
+  const currentUser = session?.user;
+  const currentUserEmail = currentUser?.email ?? null;
+  const currentUserName = currentUser?.name ?? null;
+
+  // Girise giren kullaniciyi (eger board uyesiyse) tespit et.
+  const currentMember = useMemo(() => {
+    if (!currentUserEmail) return null;
+    return (
+      members.find(
+        (m) => m.email?.toLowerCase() === currentUserEmail.toLowerCase()
+      ) ?? null
+    );
+  }, [members, currentUserEmail]);
+
+  // Assignee secenek listesi: Unassigned + current user + diger uyeler.
+  type AssigneeOption = {
+    id: string;
+    name: string;
+    initials: string;
+    color: string;
+    image?: string;
+    unassigned?: boolean;
+  };
+
+  const assigneeOptions = useMemo<AssigneeOption[]>(() => {
+    const list: AssigneeOption[] = [
+      {
+        id: "unassigned",
+        name: "Unassigned",
+        initials: "",
+        color: UNASSIGNED_COLOR,
+        unassigned: true,
+      },
+    ];
+
+    if (currentMember) {
+      list.push({
+        id: currentMember.id,
+        name: `${currentMember.name} (you)`,
+        initials: initialsOf(currentMember.name),
+        color: colorForId(currentMember.id),
+        image: currentMember.image,
+      });
+    } else if (currentUserName || currentUserEmail) {
+      list.push({
+        id: "self",
+        name: currentUserName ? `${currentUserName} (you)` : "You",
+        initials: initialsOf(currentUserName),
+        color: "bg-violet-500",
+        image: currentUser?.image ?? undefined,
+      });
+    }
+
+    for (const m of members) {
+      if (currentMember && m.id === currentMember.id) continue;
+      list.push({
+        id: m.id,
+        name: m.name,
+        initials: initialsOf(m.name),
+        color: colorForId(m.id),
+        image: m.image,
+      });
+    }
+    return list;
+  }, [
+    members,
+    currentMember,
+    currentUser?.image,
+    currentUserName,
+    currentUserEmail,
+  ]);
+
+  // Secili option: kullanici picker'da degistirdiyse o id, aksi halde kartin
+  // mevcut assignee'sini gosteren "sanki" option (initials + color ile).
+  const selectedOption = useMemo<AssigneeOption | null>(() => {
+    if (assigneeId === "unassigned") {
+      return assigneeOptions.find((o) => o.id === "unassigned") ?? null;
+    }
+    if (assigneeId) {
+      return assigneeOptions.find((o) => o.id === assigneeId) ?? null;
+    }
+    // assigneeId === "" ilk durum: kartta hangi initials varsa onu match et,
+    // member listesinde yoksa kartin initial+color'ini tasiyan virtual entry.
+    if (isUnassigned(card.assigneeInitials)) {
+      return assigneeOptions.find((o) => o.id === "unassigned") ?? null;
+    }
+    const match = assigneeOptions.find(
+      (o) => !o.unassigned && o.initials === card.assigneeInitials
+    );
+    if (match) return match;
+    return {
+      id: "__current",
+      name: card.assigneeInitials,
+      initials: card.assigneeInitials,
+      color: card.assigneeColor,
+    };
+  }, [assigneeId, assigneeOptions, card.assigneeInitials, card.assigneeColor]);
+
   const handleSave = () => {
     if (!title.trim()) return;
+
+    // Assignee alanlari sadece picker'da degisiklik yapildiginda gonderilsin.
+    // (assigneeId === "" durumunda kartin mevcut degerine dokunmak istemiyoruz.)
+    const assigneePatch: Partial<CardType> = {};
+    if (assigneeId === "unassigned") {
+      assigneePatch.assigneeInitials = "";
+      assigneePatch.assigneeColor = UNASSIGNED_COLOR;
+    } else if (assigneeId && selectedOption && !selectedOption.unassigned) {
+      assigneePatch.assigneeInitials = selectedOption.initials;
+      assigneePatch.assigneeColor = selectedOption.color;
+    }
+
     updateCard(card.id, {
       title: title.trim(),
       description: description.trim(),
@@ -74,6 +229,7 @@ export default function CardDetailModal({ card, open, onOpenChange }: CardDetail
       priority,
       storyPoints,
       dueDate,
+      ...assigneePatch,
     });
     onOpenChange(false);
   };
@@ -135,7 +291,7 @@ export default function CardDetailModal({ card, open, onOpenChange }: CardDetail
               Labels
             </label>
             <div className="flex flex-wrap gap-1.5">
-              {LABEL_OPTIONS.map((label) => (
+              {availableLabels.map((label) => (
                 <button
                   key={label}
                   onClick={() => toggleLabel(label)}
@@ -148,6 +304,81 @@ export default function CardDetailModal({ card, open, onOpenChange }: CardDetail
                   {label}
                 </button>
               ))}
+            </div>
+            <div className="mt-2">
+              <input
+                value={newLabelDraft}
+                onChange={(e) => setNewLabelDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    const name = newLabelDraft.trim();
+                    if (!name) return;
+                    if (!labels.includes(name)) {
+                      setLabels((prev) => [...prev, name]);
+                    }
+                    setNewLabelDraft("");
+                  }
+                }}
+                placeholder="+ Add custom label (Enter)"
+                className="w-full bg-transparent border-b border-dashed border-[#ead7c3] dark:border-white/[0.08] px-1 py-1 text-[11px] text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:border-violet-400"
+              />
+            </div>
+          </div>
+
+          {/* Assignee */}
+          <div>
+            <label className="text-[11px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">
+              Assignee
+            </label>
+            <div className="flex items-center flex-wrap gap-1.5">
+              {assigneeOptions.map((opt) => {
+                const isSelected = selectedOption?.id === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setAssigneeId(opt.id)}
+                    title={opt.name}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-full transition-colors ${
+                      isSelected
+                        ? "bg-violet-500/15 ring-1 ring-violet-500/60"
+                        : "hover:bg-[#dce0d9] dark:hover:bg-white/[0.05]"
+                    }`}
+                  >
+                    {opt.unassigned ? (
+                      <span className="w-5 h-5 rounded-full bg-[#dce0d9] dark:bg-white/[0.08] flex items-center justify-center">
+                        <UserX className="w-3 h-3 text-gray-500 dark:text-gray-400" />
+                      </span>
+                    ) : opt.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={opt.image}
+                        alt={opt.name}
+                        referrerPolicy="no-referrer"
+                        className="w-5 h-5 rounded-full"
+                      />
+                    ) : (
+                      <span
+                        className={`w-5 h-5 rounded-full ${opt.color} flex items-center justify-center`}
+                      >
+                        <span className="text-[9px] font-bold text-white">
+                          {opt.initials || "?"}
+                        </span>
+                      </span>
+                    )}
+                    <span
+                      className={`text-[11px] font-medium truncate max-w-[140px] ${
+                        isSelected
+                          ? "text-violet-600 dark:text-violet-300"
+                          : "text-gray-600 dark:text-gray-300"
+                      }`}
+                    >
+                      {opt.name}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
