@@ -3,7 +3,19 @@
 import { useState, useEffect, useRef } from "react";
 import { useBoardStore } from "@/store/boardStore";
 import { useSession, signOut } from "next-auth/react";
-import { LayoutGrid, Moon, Sun, BarChart3, LogOut, UserPlus, X, Zap, Check } from "lucide-react";
+import {
+  LayoutGrid,
+  Moon,
+  Sun,
+  BarChart3,
+  LogOut,
+  UserPlus,
+  X,
+  Zap,
+  Check,
+  ChevronDown,
+  Plus,
+} from "lucide-react";
 
 export default function Navbar() {
   const darkMode = useBoardStore((s) => s.darkMode);
@@ -18,8 +30,16 @@ export default function Navbar() {
   const sprints = useBoardStore((s) => s.sprints);
   const createSprint = useBoardStore((s) => s.createSprint);
   const completeSprint = useBoardStore((s) => s.completeSprint);
+  const boardId = useBoardStore((s) => s.boardId);
+  const boards = useBoardStore((s) => s.boards);
+  const loadBoards = useBoardStore((s) => s.loadBoards);
+  const switchBoard = useBoardStore((s) => s.switchBoard);
+  const createBoard = useBoardStore((s) => s.createBoard);
   const { data: session } = useSession();
 
+  const [boardDialogOpen, setBoardDialogOpen] = useState(false);
+  const [newBoardName, setNewBoardName] = useState("");
+  const [creatingBoard, setCreatingBoard] = useState(false);
   const [memberDialogOpen, setMemberDialogOpen] = useState(false);
   const [sprintDialogOpen, setSprintDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
@@ -27,8 +47,10 @@ export default function Navbar() {
   const [newSprintName, setNewSprintName] = useState("");
   const [newSprintStart, setNewSprintStart] = useState("");
   const [newSprintEnd, setNewSprintEnd] = useState("");
+  const [sprintError, setSprintError] = useState("");
   const dialogRef = useRef<HTMLDivElement>(null);
   const sprintDialogRef = useRef<HTMLDivElement>(null);
+  const boardDialogRef = useRef<HTMLDivElement>(null);
 
   const user = session?.user;
   const initials = user?.name
@@ -45,7 +67,7 @@ export default function Navbar() {
   }, [memberDialogOpen, loadMembers]);
 
   useEffect(() => {
-    if (!memberDialogOpen && !sprintDialogOpen) return;
+    if (!memberDialogOpen && !sprintDialogOpen && !boardDialogOpen) return;
     const handler = (e: MouseEvent) => {
       if (memberDialogOpen && dialogRef.current && !dialogRef.current.contains(e.target as Node)) {
         setMemberDialogOpen(false);
@@ -53,17 +75,84 @@ export default function Navbar() {
       if (sprintDialogOpen && sprintDialogRef.current && !sprintDialogRef.current.contains(e.target as Node)) {
         setSprintDialogOpen(false);
       }
+      if (boardDialogOpen && boardDialogRef.current && !boardDialogRef.current.contains(e.target as Node)) {
+        setBoardDialogOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
-  }, [memberDialogOpen, sprintDialogOpen]);
+  }, [memberDialogOpen, sprintDialogOpen, boardDialogOpen]);
+
+  // Board dialog ilk acildiginda listeyi tazele; yeni baska bir
+  // sekmeden eklenmis olabilir.
+  useEffect(() => {
+    if (boardDialogOpen) loadBoards();
+  }, [boardDialogOpen, loadBoards]);
+
+  const currentBoardName =
+    boards.find((b) => b.id === boardId)?.name || "Board";
+
+  const handleCreateBoard = async () => {
+    const name = newBoardName.trim();
+    if (!name) return;
+    setCreatingBoard(true);
+    try {
+      const created = await createBoard(name);
+      setNewBoardName("");
+      // Yeni olusturulan board'a gec
+      await switchBoard(created.id);
+      setBoardDialogOpen(false);
+    } catch {
+      // Store pushError'a yaziyor zaten
+    } finally {
+      setCreatingBoard(false);
+    }
+  };
+
+  const handleSwitchBoard = async (id: string) => {
+    if (id === boardId) {
+      setBoardDialogOpen(false);
+      return;
+    }
+    await switchBoard(id);
+    setBoardDialogOpen(false);
+  };
 
   const handleCreateSprint = async () => {
-    if (!newSprintName.trim() || !newSprintStart || !newSprintEnd) return;
-    await createSprint(newSprintName.trim(), newSprintStart, newSprintEnd);
-    setNewSprintName("");
-    setNewSprintStart("");
-    setNewSprintEnd("");
+    setSprintError("");
+    const name = newSprintName.trim();
+    if (!name || !newSprintStart || !newSprintEnd) {
+      setSprintError("Fill in all fields");
+      return;
+    }
+    // Client-side pre-validation: server de ayni kontrolu yapiyor ama
+    // kullaniciya istek atmadan feedback vermek daha iyi.
+    if (new Date(newSprintEnd) <= new Date(newSprintStart)) {
+      setSprintError("End date must be after start date");
+      return;
+    }
+    if (activeSprint) {
+      setSprintError("Complete the active sprint before starting a new one");
+      return;
+    }
+    try {
+      await createSprint(name, newSprintStart, newSprintEnd);
+      setNewSprintName("");
+      setNewSprintStart("");
+      setNewSprintEnd("");
+    } catch {
+      // Store'daki pushError zaten ErrorToast'a yaziyor; burada ek
+      // bir sey yapmayalim, yalnizca form'u acik birakalim.
+    }
+  };
+
+  const handleCompleteSprint = async () => {
+    if (!activeSprint) return;
+    const ok = window.confirm(
+      `Complete sprint "${activeSprint.name}"? This cannot be undone.`
+    );
+    if (!ok) return;
+    await completeSprint(activeSprint.id);
   };
 
   const handleInvite = async () => {
@@ -79,17 +168,101 @@ export default function Navbar() {
 
   return (
     <nav className="relative z-50 flex items-center justify-between h-12 sm:h-14 px-3 sm:px-5 border-b border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef]/80 dark:bg-[#12121a]/80 backdrop-blur-md">
-      {/* Left: Logo + Sprint */}
+      {/* Left: Logo + Board switcher + Sprint */}
       <div className="flex items-center gap-2 sm:gap-4 min-w-0">
         <button
           onClick={() => setActiveView("kanban")}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity flex-shrink-0"
+          title="FlowBoard"
         >
           <LayoutGrid className="w-5 h-5 text-violet-400" />
-          <span className="text-[14px] sm:text-[15px] font-bold text-gray-900 dark:text-white tracking-tight">
-            FlowBoard
-          </span>
         </button>
+
+        {/* Board switcher dropdown */}
+        <div className="relative min-w-0">
+          <button
+            onClick={() => setBoardDialogOpen((v) => !v)}
+            className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded-md hover:bg-[#dce0d9] dark:hover:bg-white/[0.05] transition-colors min-w-0"
+            title="Switch board"
+          >
+            <span className="text-[13px] sm:text-[14px] font-bold text-gray-900 dark:text-white tracking-tight truncate max-w-[140px] sm:max-w-[200px]">
+              {currentBoardName}
+            </span>
+            <ChevronDown className="w-3.5 h-3.5 text-gray-500 dark:text-gray-400 flex-shrink-0" />
+          </button>
+
+          {boardDialogOpen && (
+            <div
+              ref={boardDialogRef}
+              className="absolute left-0 top-full mt-2 w-[calc(100vw-1.5rem)] sm:w-72 max-w-[18rem] rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-[#fbf6ef] dark:bg-[#1e1e2e] shadow-xl z-50 p-3"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">
+                  Boards ({boards.length})
+                </h3>
+                <button onClick={() => setBoardDialogOpen(false)}>
+                  <X className="w-4 h-4 text-gray-400" />
+                </button>
+              </div>
+
+              {/* Board list */}
+              <div className="space-y-0.5 max-h-56 overflow-y-auto mb-3">
+                {boards.map((b) => {
+                  const isCurrent = b.id === boardId;
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => handleSwitchBoard(b.id)}
+                      className={`w-full flex items-center justify-between gap-2 py-1.5 px-2 rounded-md text-left transition-colors ${
+                        isCurrent
+                          ? "bg-violet-500/15 text-violet-600 dark:text-violet-300"
+                          : "text-gray-700 dark:text-gray-300 hover:bg-[#dce0d9] dark:hover:bg-white/[0.03]"
+                      }`}
+                    >
+                      <span className="text-[12px] font-medium truncate">
+                        {b.name}
+                      </span>
+                      {isCurrent && (
+                        <Check className="w-3.5 h-3.5 flex-shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+                {boards.length === 0 && (
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400 py-2 text-center">
+                    No boards yet
+                  </p>
+                )}
+              </div>
+
+              {/* Create board */}
+              <div className="border-t border-[#ead7c3] dark:border-white/[0.06] pt-2.5">
+                <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5">
+                  Create new board
+                </p>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={newBoardName}
+                    onChange={(e) => setNewBoardName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCreateBoard();
+                    }}
+                    placeholder="Board name..."
+                    className="flex-1 rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 transition-colors"
+                  />
+                  <button
+                    onClick={handleCreateBoard}
+                    disabled={!newBoardName.trim() || creatingBoard}
+                    className="flex items-center gap-1 px-2 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-medium text-white transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Create
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
         <div className="relative">
           <button
             onClick={() => setSprintDialogOpen(!sprintDialogOpen)}
@@ -124,7 +297,7 @@ export default function Navbar() {
                       </p>
                     </div>
                     <button
-                      onClick={() => completeSprint(activeSprint.id)}
+                      onClick={handleCompleteSprint}
                       className="flex items-center gap-1 px-2 py-1 rounded-md bg-violet-600 hover:bg-violet-500 text-[10px] font-medium text-white transition-colors"
                     >
                       <Check className="w-3 h-3" />
@@ -138,31 +311,56 @@ export default function Navbar() {
               <div className="space-y-2 mb-3">
                 <input
                   value={newSprintName}
-                  onChange={(e) => setNewSprintName(e.target.value)}
+                  onChange={(e) => {
+                    setNewSprintName(e.target.value);
+                    setSprintError("");
+                  }}
                   placeholder="Sprint name..."
-                  className="w-full rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 transition-colors"
+                  disabled={!!activeSprint}
+                  className="w-full rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 />
                 <div className="flex gap-2">
                   <input
                     type="date"
                     value={newSprintStart}
-                    onChange={(e) => setNewSprintStart(e.target.value)}
-                    className="flex-1 rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 transition-colors [color-scheme:dark]"
+                    onChange={(e) => {
+                      setNewSprintStart(e.target.value);
+                      setSprintError("");
+                    }}
+                    disabled={!!activeSprint}
+                    className="flex-1 rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 transition-colors [color-scheme:dark] disabled:opacity-40 disabled:cursor-not-allowed"
                   />
                   <input
                     type="date"
                     value={newSprintEnd}
-                    onChange={(e) => setNewSprintEnd(e.target.value)}
-                    className="flex-1 rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 transition-colors [color-scheme:dark]"
+                    onChange={(e) => {
+                      setNewSprintEnd(e.target.value);
+                      setSprintError("");
+                    }}
+                    disabled={!!activeSprint}
+                    className="flex-1 rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-2.5 py-1.5 text-[11px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 transition-colors [color-scheme:dark] disabled:opacity-40 disabled:cursor-not-allowed"
                   />
                 </div>
                 <button
                   onClick={handleCreateSprint}
-                  disabled={!newSprintName.trim() || !newSprintStart || !newSprintEnd}
+                  disabled={
+                    !!activeSprint ||
+                    !newSprintName.trim() ||
+                    !newSprintStart ||
+                    !newSprintEnd
+                  }
+                  title={
+                    activeSprint
+                      ? "Complete the active sprint before starting a new one"
+                      : undefined
+                  }
                   className="w-full py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-[11px] font-medium text-white transition-colors"
                 >
                   Start New Sprint
                 </button>
+                {sprintError && (
+                  <p className="text-[10px] text-red-500">{sprintError}</p>
+                )}
               </div>
 
               {/* Past sprints */}

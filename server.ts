@@ -143,6 +143,13 @@ app.prepare().then(() => {
       console.log(`[Socket.io] ${socket.id} joined board:${boardId}`);
     }));
 
+    // Board oda degisikliginde eskiyi temiz biraksin ki eski board
+    // event'leri bu socket'e gelmesin.
+    socket.on("leave-board", withEventRateLimit<string>(socket, "leave-board", (boardId: string) => {
+      socket.leave(`board:${boardId}`);
+      console.log(`[Socket.io] ${socket.id} left board:${boardId}`);
+    }));
+
     // Kart taşındı
     socket.on("card-moved", withEventRateLimit<{ boardId: string; cardId: string; toColumnId: string; newIndex: number }>(socket, "card-moved", (data) => {
       socket.to(`board:${data.boardId}`).emit("card-moved", data);

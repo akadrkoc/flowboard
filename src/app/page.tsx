@@ -2,19 +2,19 @@
 
 import { useEffect, useState } from "react";
 import { useBoardStore } from "@/store/boardStore";
-import { graphqlFetch } from "@/lib/graphqlFetch";
 import Navbar from "@/components/Navbar";
 import Board from "@/components/Board";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
 import UndoToast from "@/components/UndoToast";
 import ErrorToast from "@/components/ErrorToast";
+import BulkActionsBar from "@/components/BulkActionsBar";
+import KeyboardShortcuts from "@/components/KeyboardShortcuts";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
 
-const GET_BOARDS_QUERY = `query { boards { id name } }`;
-const CREATE_BOARD_MUTATION = `mutation CreateBoard($name: String!) { createBoard(name: $name) { id name } }`;
-
 export default function Home() {
+  const loadBoards = useBoardStore((s) => s.loadBoards);
+  const createBoard = useBoardStore((s) => s.createBoard);
   const loadBoard = useBoardStore((s) => s.loadBoard);
   const initSocket = useBoardStore((s) => s.initSocket);
   const loadMembers = useBoardStore((s) => s.loadMembers);
@@ -36,25 +36,34 @@ export default function Home() {
   useEffect(() => {
     async function init() {
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const data: any = await graphqlFetch(GET_BOARDS_QUERY);
+        const boards = await loadBoards();
 
         let boardId: string;
 
-        if (data.boards.length > 0) {
-          boardId = data.boards[0].id;
+        if (boards.length > 0) {
+          // En son kullanilan board'u tercih et; yoksa ilkini ac.
+          const lastId = typeof window !== "undefined"
+            ? localStorage.getItem("flowboard-last-board")
+            : null;
+          boardId =
+            boards.find((b) => b.id === lastId)?.id ?? boards[0].id;
         } else {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const createData: any = await graphqlFetch(CREATE_BOARD_MUTATION, {
-            name: "My Board",
-          });
-          boardId = createData.createBoard.id;
+          const created = await createBoard("My Board");
+          boardId = created.id;
         }
 
         await loadBoard(boardId);
         initSocket();
         loadMembers();
         loadSprints();
+
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.setItem("flowboard-last-board", boardId);
+          } catch {
+            // Ignore quota / private mode errors.
+          }
+        }
       } catch (err) {
         console.error("Init error:", err);
         setError((err as Error).message);
@@ -64,7 +73,7 @@ export default function Home() {
     }
 
     init();
-  }, [loadBoard, initSocket, loadMembers, loadSprints]);
+  }, [loadBoards, createBoard, loadBoard, initSocket, loadMembers, loadSprints]);
 
   if (initializing || loading) {
     return (
@@ -104,6 +113,8 @@ export default function Home() {
       )}
       <UndoToast />
       <ErrorToast />
+      <BulkActionsBar />
+      <KeyboardShortcuts />
     </div>
   );
 }

@@ -5,6 +5,10 @@ import { getSocket } from "@/lib/socket";
 
 interface BoardState {
   boardId: string | null;
+  boards: { id: string; name: string }[];
+  loadBoards: () => Promise<{ id: string; name: string }[]>;
+  createBoard: (name: string) => Promise<{ id: string; name: string }>;
+  switchBoard: (boardId: string) => Promise<void>;
   columns: Column[];
   loading: boolean;
   darkMode: boolean;
@@ -12,6 +16,7 @@ interface BoardState {
   searchQuery: string;
   filterPriority: string | null;
   filterLabel: string | null;
+  filterAssignee: string | null;
   lastDeletedCard: (Card & { columnId: string }) | null;
   loadBoard: (boardId: string) => Promise<void>;
   initSocket: () => void;
@@ -28,6 +33,8 @@ interface BoardState {
   setSearchQuery: (query: string) => void;
   setFilterPriority: (priority: string | null) => void;
   setFilterLabel: (label: string | null) => void;
+  setFilterAssignee: (assignee: string | null) => void;
+  clearFilters: () => void;
   restoreCard: () => void;
   dismissUndo: () => void;
   addColumn: (name: string) => void;
@@ -48,9 +55,39 @@ interface BoardState {
   errors: { id: string; message: string }[];
   pushError: (message: string) => void;
   dismissError: (id: string) => void;
+  // Klavye kisayollari ile "Add card" formunu acmak icin kolon hedefi.
+  // Artan bir counter ile ayni kolon tekrar tekrar tetiklenebilir.
+  addCardRequest: { columnId: string; nonce: number } | null;
+  requestAddCard: (columnId: string) => void;
+  clearAddCardRequest: () => void;
+
+  // Toplu secim: kullanici cok sayida karti ayni anda tasimak veya silmek
+  // istedigi zaman aktif olan mod. selectedCardIds'deki degerler `true`
+  // (Record<string, true>) olarak tutuluyor; O(1) contains ve Immer-benzeri
+  // immutable spread kullanimi icin.
+  selectMode: boolean;
+  selectedCardIds: Record<string, true>;
+  toggleSelectMode: () => void;
+  setSelectMode: (on: boolean) => void;
+  toggleCardSelection: (cardId: string) => void;
+  clearSelection: () => void;
+  bulkDeleteSelected: () => void;
+  bulkMoveSelected: (toColumnId: string) => void;
 }
 
 // GraphQL query strings
+const GET_BOARDS_LIST_QUERY = `
+  query GetBoards {
+    boards { id name }
+  }
+`;
+
+const CREATE_BOARD_MUTATION = `
+  mutation CreateBoard($name: String!) {
+    createBoard(name: $name) { id name }
+  }
+`;
+
 const GET_BOARD_QUERY = `
   query GetBoard($id: ID!) {
     board(id: $id) {
@@ -275,6 +312,7 @@ function errMessage(err: unknown, fallback: string): string {
 
 export const useBoardStore = create<BoardState>((set, get) => ({
   boardId: null,
+  boards: [],
   columns: [],
   loading: false,
   darkMode: true,
@@ -282,12 +320,79 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   searchQuery: "",
   filterPriority: null,
   filterLabel: null,
+  filterAssignee: null,
   lastDeletedCard: null,
   commentsByCard: {},
   members: [],
   activeSprint: null,
   sprints: [],
   errors: [],
+  addCardRequest: null,
+  selectMode: false,
+  selectedCardIds: {},
+
+  toggleSelectMode: () =>
+    set((state) => ({
+      selectMode: !state.selectMode,
+      // Mode kapatilinca secimleri de sifirla.
+      selectedCardIds: state.selectMode ? {} : state.selectedCardIds,
+    })),
+  setSelectMode: (on: boolean) =>
+    set((state) => ({
+      selectMode: on,
+      selectedCardIds: on ? state.selectedCardIds : {},
+    })),
+  toggleCardSelection: (cardId: string) =>
+    set((state) => {
+      const next = { ...state.selectedCardIds };
+      if (next[cardId]) {
+        delete next[cardId];
+      } else {
+        next[cardId] = true;
+      }
+      return { selectedCardIds: next };
+    }),
+  clearSelection: () => set({ selectedCardIds: {} }),
+
+  bulkDeleteSelected: () => {
+    const ids = Object.keys(get().selectedCardIds);
+    if (ids.length === 0) return;
+    // Mevcut deleteCard aksiyonu optimistic + soft delete yapiyor; her biri
+    // icin ayri mutation cagrimi yeterli (kucuk N icin kabul edilebilir).
+    for (const id of ids) {
+      get().deleteCard(id);
+    }
+    set({ selectedCardIds: {}, selectMode: false });
+  },
+
+  bulkMoveSelected: (toColumnId: string) => {
+    const { selectedCardIds, columns } = get();
+    const ids = Object.keys(selectedCardIds);
+    if (ids.length === 0) return;
+    const targetCol = columns.find((c) => c.id === toColumnId);
+    if (!targetCol) return;
+    let baseIndex = targetCol.cards.length;
+    for (const id of ids) {
+      // Ayni kolona tasima istegi idempotent (moveCard zaten handle ediyor
+      // ama server tarafina gereksiz yuk binmesin diye atliyoruz).
+      const current = columns
+        .flatMap((c) => c.cards.map((card) => ({ ...card, colId: c.id })))
+        .find((c) => c.id === id);
+      if (!current) continue;
+      get().moveCard(id, toColumnId, baseIndex);
+      if (current.colId !== toColumnId) baseIndex += 1;
+    }
+    set({ selectedCardIds: {}, selectMode: false });
+  },
+
+  requestAddCard: (columnId: string) =>
+    set((state) => ({
+      addCardRequest: {
+        columnId,
+        nonce: (state.addCardRequest?.nonce ?? 0) + 1,
+      },
+    })),
+  clearAddCardRequest: () => set({ addCardRequest: null }),
 
   pushError: (message: string) => {
     const id = `err-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -804,6 +909,14 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   setSearchQuery: (query) => set({ searchQuery: query }),
   setFilterPriority: (priority) => set({ filterPriority: priority }),
   setFilterLabel: (label) => set({ filterLabel: label }),
+  setFilterAssignee: (assignee) => set({ filterAssignee: assignee }),
+  clearFilters: () =>
+    set({
+      searchQuery: "",
+      filterPriority: null,
+      filterLabel: null,
+      filterAssignee: null,
+    }),
 
   loadMembers: async () => {
     const { boardId } = get();
@@ -923,6 +1036,9 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }));
     } catch (err) {
       console.error("Failed to create sprint:", err);
+      get().pushError(errMessage(err, "Failed to create sprint"));
+      // Navbar'daki caller try/catch ile tutup dialog'u acik birakabilsin.
+      throw err;
     }
   },
 
@@ -937,6 +1053,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }));
     } catch (err) {
       console.error("Failed to complete sprint:", err);
+      get().pushError(errMessage(err, "Failed to complete sprint"));
     }
   },
 
@@ -991,4 +1108,84 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       return { darkMode: newDarkMode };
     }),
   setActiveView: (view) => set({ activeView: view }),
+
+  loadBoards: async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await graphqlFetch(GET_BOARDS_LIST_QUERY);
+      const boards = (data.boards ?? []) as { id: string; name: string }[];
+      set({ boards });
+      return boards;
+    } catch (err) {
+      console.error("Failed to load boards:", err);
+      get().pushError(errMessage(err, "Failed to load boards"));
+      return [];
+    }
+  },
+
+  createBoard: async (name: string) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await graphqlFetch(CREATE_BOARD_MUTATION, { name });
+      const board = data.createBoard as { id: string; name: string };
+      set((state) => ({ boards: [...state.boards, board] }));
+      return board;
+    } catch (err) {
+      console.error("Failed to create board:", err);
+      get().pushError(errMessage(err, "Failed to create board"));
+      throw err;
+    }
+  },
+
+  switchBoard: async (newBoardId: string) => {
+    const { boardId: oldBoardId } = get();
+    if (oldBoardId === newBoardId) return;
+
+    // Eski board odasindan cik; yeni board icin join-board yeniden emit edilir.
+    try {
+      const socket = getSocket();
+      if (oldBoardId && socket.connected) {
+        socket.emit("leave-board", oldBoardId);
+      }
+    } catch {
+      // Socket initialize olmamis olabilir; sessizce gec.
+    }
+
+    // Eski board'a ozgu transient state'i temizle.
+    set({
+      columns: [],
+      members: [],
+      sprints: [],
+      activeSprint: null,
+      commentsByCard: {},
+      lastDeletedCard: null,
+      searchQuery: "",
+      filterPriority: null,
+      filterLabel: null,
+      filterAssignee: null,
+    });
+
+    await get().loadBoard(newBoardId);
+
+    // Yeni board'a socket join'i: initSocket daha once cagrilmissa
+    // ayni socket uzerinde join-board emit edelim.
+    try {
+      const socket = getSocket();
+      if (socket.connected) socket.emit("join-board", newBoardId);
+    } catch {
+      // Ignore; initSocket sonraki cagrilarda halleder.
+    }
+
+    // Yeni board'un metadatalari.
+    get().loadMembers();
+    get().loadSprints();
+
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("flowboard-last-board", newBoardId);
+      } catch {
+        // Storage quota etc; onemli degil.
+      }
+    }
+  },
 }));
