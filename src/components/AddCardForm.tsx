@@ -8,7 +8,7 @@ import type { Priority } from "@/types/board";
 import { UNASSIGNED_COLOR } from "@/lib/assignee";
 import { useAvailableLabels } from "@/components/pickers/useAvailableLabels";
 import { useAssigneeOptions } from "@/components/pickers/useAssigneeOptions";
-import { LabelPicker } from "@/components/pickers/LabelPicker";
+import { LabelPickerDropdown } from "@/components/pickers/LabelPickerDropdown";
 import { PriorityPicker } from "@/components/pickers/PriorityPicker";
 import { StoryPointsPicker } from "@/components/pickers/StoryPointsPicker";
 import { AssigneePickerDropdown } from "@/components/pickers/AssigneePickerDropdown";
@@ -113,7 +113,7 @@ export default function AddCardForm({ columnId }: AddCardFormProps) {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="w-full flex items-center justify-center gap-1.5 py-2 text-[12px] text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-[#dce0d9] dark:hover:bg-white/[0.03] rounded-lg transition-colors"
+        className="w-full flex items-center justify-center gap-2 py-2.5 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-lg transition-colors"
       >
         <Plus className="w-3.5 h-3.5" />
         Add card
@@ -122,7 +122,7 @@ export default function AddCardForm({ columnId }: AddCardFormProps) {
   }
 
   return (
-    <div className="rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-[#fbf6ef] dark:bg-[#1e1e2e] p-3 space-y-3">
+    <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-3">
       <input
         autoFocus
         value={title}
@@ -146,23 +146,19 @@ export default function AddCardForm({ columnId }: AddCardFormProps) {
         className="w-full rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9]/50 dark:bg-white/[0.02] px-2.5 py-1.5 text-[12px] text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:border-violet-400 resize-none"
       />
 
-      <div className="space-y-1.5">
-        <LabelPicker
-          labels={availableLabels}
-          selectedLabels={selectedLabels}
-          onToggle={toggleLabel}
-          newLabelDraft={newLabelDraft}
-          onNewLabelDraftChange={setNewLabelDraft}
-          onAddCustomLabel={(name) => {
-            if (!selectedLabels.includes(name)) {
-              setSelectedLabels((prev) => [...prev, name]);
-            }
-            setNewLabelDraft("");
-          }}
-          badgeClassName="px-2 py-0.5 rounded-full text-[10px] font-medium transition-colors"
-          inputClassName="flex-1 bg-transparent border-b border-dashed border-[#ead7c3] dark:border-white/[0.08] px-1 py-0.5 text-[10px] text-gray-700 dark:text-gray-300 placeholder-gray-400 dark:placeholder-gray-500 outline-none focus:border-violet-400"
-        />
-      </div>
+      <LabelPickerDropdown
+        labels={availableLabels}
+        selectedLabels={selectedLabels}
+        onToggle={toggleLabel}
+        newLabelDraft={newLabelDraft}
+        onNewLabelDraftChange={setNewLabelDraft}
+        onAddCustomLabel={(name) => {
+          if (!selectedLabels.includes(name)) {
+            setSelectedLabels((prev) => [...prev, name]);
+          }
+          setNewLabelDraft("");
+        }}
+      />
 
       <div className="flex items-center gap-3 flex-wrap">
         <PriorityPicker value={priority} onChange={setPriority} size="sm" />

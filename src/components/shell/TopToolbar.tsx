@@ -18,19 +18,19 @@ export default function TopToolbar({ boardId }: TopToolbarProps) {
   const boardName = boards.find((b) => b.id === boardId)?.name ?? "Board";
 
   return (
-    <header className="flex items-center justify-between gap-3 h-12 px-4 border-b border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef]/80 dark:bg-[#12121a]/80 backdrop-blur-md flex-shrink-0">
-      <div className="flex items-center gap-2 min-w-0 flex-1">
+    <header className="relative z-40 flex items-center justify-between gap-4 h-14 px-4 sm:px-6 border-b border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#16161e] flex-shrink-0">
+      <div className="flex items-center gap-4 min-w-0 flex-1">
         <nav
           aria-label="Breadcrumb"
-          className="hidden md:flex items-center gap-1.5 text-[12px] text-gray-500 dark:text-gray-400 min-w-0 flex-shrink-0"
+          className="hidden md:flex items-center gap-2 text-sm text-muted-foreground min-w-0 flex-shrink-0"
         >
-          <span className="font-medium text-gray-700 dark:text-gray-300 truncate max-w-[120px]">
+          <span className="font-medium text-foreground truncate max-w-[160px]">
             {boardName}
           </span>
           {activeSprint && (
             <>
-              <ChevronRight className="w-3 h-3 flex-shrink-0" />
-              <span className="truncate text-violet-600 dark:text-violet-300 max-w-[100px]">
+              <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 opacity-50" />
+              <span className="truncate text-violet-600 dark:text-violet-300 max-w-[140px]">
                 {activeSprint.name}
               </span>
             </>
@@ -40,10 +40,10 @@ export default function TopToolbar({ boardId }: TopToolbarProps) {
         <ViewTabs />
       </div>
 
-      <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+      <div className="flex items-center gap-3 flex-shrink-0">
         <SprintPanel />
         <MembersPanel />
-        <div className="hidden sm:block w-px h-5 bg-[#ead7c3] dark:bg-white/[0.08]" />
+        <div className="hidden sm:block w-px h-6 bg-border/60" />
         <UserControls />
       </div>
     </header>

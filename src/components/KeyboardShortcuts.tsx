@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useBoardStore } from "@/store/boardStore";
 import { useBoardNavigation } from "@/hooks/useBoardNavigation";
 import { X } from "lucide-react";
@@ -29,7 +29,8 @@ const SHORTCUTS: { keys: string; description: string }[] = [
 ];
 
 export default function KeyboardShortcuts() {
-  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const taskOpen = !!searchParams.get("task");
   const { closeTask } = useBoardNavigation();
   const columns = useBoardStore((s) => s.columns);
   const requestAddCard = useBoardStore((s) => s.requestAddCard);
@@ -137,7 +138,7 @@ export default function KeyboardShortcuts() {
           return;
         }
         case "Escape": {
-          if (pathname.includes("/task/")) {
+          if (taskOpen) {
             e.preventDefault();
             closeTask();
           }
@@ -154,7 +155,7 @@ export default function KeyboardShortcuts() {
       window.removeEventListener("keydown", handler);
       if (gTimer) clearTimeout(gTimer);
     };
-  }, [columns, requestAddCard, setActiveView, activeView, helpOpen, pathname, closeTask]);
+  }, [columns, requestAddCard, setActiveView, activeView, helpOpen, taskOpen, closeTask]);
 
   if (!helpOpen) return null;
 

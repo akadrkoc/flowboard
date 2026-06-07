@@ -37,7 +37,7 @@ export default function MembersPanel() {
         onClick={() => setOpen(!open)}
         aria-label="Manage board members"
         aria-expanded={open}
-        className="flex items-center -space-x-1.5"
+        className="flex items-center -space-x-2 p-1 rounded-lg hover:bg-muted transition-colors"
       >
         {members.slice(0, 3).map((m) => (
           <div key={m.id} className="relative">
@@ -74,7 +74,7 @@ export default function MembersPanel() {
       {open && (
         <div
           ref={dialogRef}
-          className="absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] sm:w-72 max-w-[18rem] rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-[#fbf6ef] dark:bg-[#1e1e2e] shadow-xl z-50 p-3"
+          className="absolute right-0 top-full mt-2 w-[calc(100vw-1.5rem)] sm:w-72 max-w-[18rem] rounded-lg border border-border bg-popover shadow-xl z-[100] p-3"
         >
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">

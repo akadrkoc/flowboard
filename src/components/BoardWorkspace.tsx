@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import { useBoardStore } from "@/store/boardStore";
 import { isBoardView, VIEW_STORAGE_KEY } from "@/types/views";
 import AppShell from "@/components/shell/AppShell";
@@ -14,10 +15,11 @@ import LoadingSpinner from "@/components/ui/LoadingSpinner";
 
 interface BoardWorkspaceProps {
   boardId: string;
-  taskId?: string;
 }
 
-export default function BoardWorkspace({ boardId, taskId }: BoardWorkspaceProps) {
+export default function BoardWorkspace({ boardId }: BoardWorkspaceProps) {
+  const searchParams = useSearchParams();
+  const taskId = searchParams.get("task") ?? undefined;
   const switchBoard = useBoardStore((s) => s.switchBoard);
   const initSocket = useBoardStore((s) => s.initSocket);
   const setActiveView = useBoardStore((s) => s.setActiveView);
@@ -26,7 +28,9 @@ export default function BoardWorkspace({ boardId, taskId }: BoardWorkspaceProps)
   const activeView = useBoardStore((s) => s.activeView);
   const pushError = useBoardStore((s) => s.pushError);
 
-  const [initializing, setInitializing] = useState(true);
+  const [initializing, setInitializing] = useState(
+    () => useBoardStore.getState().boardId !== boardId
+  );
   const [error, setError] = useState<string | null>(null);
   const socketInitialized = useRef(false);
 
@@ -47,12 +51,15 @@ export default function BoardWorkspace({ boardId, taskId }: BoardWorkspaceProps)
 
     async function load() {
       setError(null);
+      const currentId = useBoardStore.getState().boardId;
+      if (currentId === boardId) {
+        setInitializing(false);
+        return;
+      }
+
       setInitializing(true);
       try {
-        const currentId = useBoardStore.getState().boardId;
-        if (currentId !== boardId) {
-          await switchBoard(boardId);
-        }
+        await switchBoard(boardId);
 
         if (!socketInitialized.current) {
           initSocket();

@@ -118,7 +118,7 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
       onClick={openCard}
       onKeyDown={handleKeyDown}
       className={`
-        group relative rounded-lg border border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#1e1e2e] p-2.5
+        group relative rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-white dark:bg-[#1e1e2e] p-3
         shadow-sm hover:shadow-md hover:border-[#d4c4ae] dark:hover:border-white/[0.12]
         transition-all duration-150 cursor-grab active:cursor-grabbing
         ${isDraggingOverlay ? "shadow-xl shadow-black/20 dark:shadow-black/30 ring-1 ring-[#ead7c3] dark:ring-white/10" : ""}
@@ -168,7 +168,7 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
           ))}
       </div>
 
-      <p className="text-[13px] font-medium text-gray-800 dark:text-gray-100 leading-snug mb-1.5 pr-1">
+      <p className="text-sm font-medium text-foreground leading-snug mb-2 pr-1">
         {card.title}
       </p>
 

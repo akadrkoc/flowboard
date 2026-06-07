@@ -15,40 +15,44 @@ export default function StatsBar() {
   const donePercent = totalCards > 0 ? Math.round((doneCards / totalCards) * 100) : 0;
 
   return (
-    <div className="flex items-center justify-between h-10 sm:h-11 px-3 sm:px-5 border-t border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef]/80 dark:bg-[#12121a]/80 backdrop-blur-md text-[10px] sm:text-[11px]">
-      <div className="flex items-center gap-3 sm:gap-5 min-w-0 overflow-x-auto">
-        <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 flex-shrink-0">
-          <Layers className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-          <span className="font-medium text-gray-700 dark:text-gray-300">{totalCards}</span> cards
+    <div className="flex items-center justify-between h-11 px-4 sm:px-6 border-t border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#16161e] text-xs">
+      <div className="flex items-center gap-4 sm:gap-6 min-w-0 overflow-x-auto">
+        <span className="flex items-center gap-2 text-muted-foreground flex-shrink-0">
+          <Layers className="w-3.5 h-3.5" />
+          <span className="font-medium text-foreground">{totalCards}</span>
+          <span>cards</span>
         </span>
 
-        <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 flex-shrink-0">
-          <CheckCircle2 className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-emerald-500 dark:text-emerald-400" />
-          <span className="font-medium text-gray-700 dark:text-gray-300">{doneCards}</span> done
+        <span className="flex items-center gap-2 text-muted-foreground flex-shrink-0">
+          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+          <span className="font-medium text-foreground">{doneCards}</span>
+          <span>done</span>
         </span>
 
-        <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 flex-shrink-0">
-          <Flame className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500 dark:text-amber-400" />
-          <span className="font-medium text-gray-700 dark:text-gray-300">{totalPoints}</span> pts
+        <span className="flex items-center gap-2 text-muted-foreground flex-shrink-0">
+          <Flame className="w-3.5 h-3.5 text-amber-500" />
+          <span className="font-medium text-foreground">{totalPoints}</span>
+          <span>pts</span>
         </span>
 
-        {/* Progress bar */}
-        <div className="hidden md:flex items-center gap-2 flex-shrink-0">
+        <div className="hidden md:flex items-center gap-2.5 flex-shrink-0">
           <TrendingUp className="w-3.5 h-3.5 text-violet-400" />
-          <div className="w-20 lg:w-24 h-1.5 rounded-full bg-[#dce0d9] dark:bg-white/[0.06] overflow-hidden">
+          <div className="w-24 h-1.5 rounded-full bg-muted overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-to-r from-violet-500 to-emerald-500 transition-all duration-500"
               style={{ width: `${donePercent}%` }}
             />
           </div>
-          <span className="text-gray-500 dark:text-gray-400 font-medium">{donePercent}%</span>
+          <span className="text-muted-foreground font-medium">{donePercent}%</span>
         </div>
       </div>
 
-      <span className="flex items-center gap-1.5 text-gray-500 dark:text-gray-400 flex-shrink-0 ml-3">
-        <Users className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-        <span className="font-medium text-emerald-500 dark:text-emerald-400">{memberCount || 1}</span>
-        <span className="hidden sm:inline">{memberCount === 1 ? " member" : " members"}</span>
+      <span className="flex items-center gap-2 text-muted-foreground flex-shrink-0 ml-4">
+        <Users className="w-3.5 h-3.5" />
+        <span className="font-medium text-emerald-500">{memberCount || 1}</span>
+        <span className="hidden sm:inline">
+          {memberCount === 1 ? "member" : "members"}
+        </span>
       </span>
     </div>
   );

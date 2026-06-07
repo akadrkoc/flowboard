@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, useEffect, Suspense, type ReactNode } from "react";
 import Sidebar from "./Sidebar";
 import TopToolbar from "./TopToolbar";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
@@ -41,18 +41,18 @@ export default function AppShell({ boardId, taskId, children }: AppShellProps) {
 
       <div className="flex flex-col flex-1 min-w-0">
         <TopToolbar boardId={boardId} />
-        <div className="flex flex-1 min-h-0">
-          <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-            {children}
-          </div>
-          {taskId && <TaskDetailPanel taskId={taskId} boardId={boardId} />}
+        <div className="flex flex-col flex-1 min-w-0 min-h-0">
+          {children}
         </div>
+        {taskId && <TaskDetailPanel taskId={taskId} boardId={boardId} />}
       </div>
 
       <UndoToast />
       <ErrorToast />
       <BulkActionsBar />
-      <KeyboardShortcuts />
+      <Suspense fallback={null}>
+        <KeyboardShortcuts />
+      </Suspense>
     </div>
   );
 }

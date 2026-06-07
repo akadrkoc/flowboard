@@ -2,13 +2,11 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { Trash2, Calendar, Flag, Hash } from "lucide-react";
 import {
-  Trash2,
-  X,
-  Calendar,
-  Flag,
-  CircleDot,
-} from "lucide-react";
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 import SubtaskList from "@/components/task/SubtaskList";
 import ActivityFeed from "@/components/task/ActivityFeed";
 import { useSession } from "next-auth/react";
@@ -18,12 +16,11 @@ import { UNASSIGNED_COLOR, isUnassigned } from "@/lib/assignee";
 import { useBoardNavigation } from "@/hooks/useBoardNavigation";
 import { useAvailableLabels } from "@/components/pickers/useAvailableLabels";
 import { useAssigneeOptions } from "@/components/pickers/useAssigneeOptions";
-import { LabelPicker } from "@/components/pickers/LabelPicker";
+import { LabelPickerDropdown } from "@/components/pickers/LabelPickerDropdown";
 import { PriorityPicker } from "@/components/pickers/PriorityPicker";
 import { StoryPointsPicker } from "@/components/pickers/StoryPointsPicker";
-import { AssigneePickerInline } from "@/components/pickers/AssigneePickerInline";
-import type { AssigneeOption } from "@/components/pickers/types";
-import { getColumnStatusStyle } from "@/lib/columnColors";
+import { AssigneePickerDropdown } from "@/components/pickers/AssigneePickerDropdown";
+import { StatusPickerDropdown } from "@/components/pickers/StatusPickerDropdown";
 
 interface TaskDetailPanelProps {
   taskId: string;
@@ -102,7 +99,6 @@ export default function TaskDetailPanel({
           : ""
     );
     setSaveState("idle");
-    // Sync form only when switching tasks, not on every card field update.
     // eslint-disable-next-line react-hooks/exhaustive-deps -- card?.id is the task identity
   }, [taskId, card?.id]);
 
@@ -119,39 +115,8 @@ export default function TaskDetailPanel({
     }
   }, [taskId, loadActivityFeed, loadSubtasks]);
 
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") closeTask();
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [closeTask]);
-
   const availableLabels = useAvailableLabels(columns, labels);
   const assigneeOptions = useAssigneeOptions(members, session);
-
-  const selectedOption = useMemo<AssigneeOption | null>(() => {
-    if (!card) return null;
-    if (assigneeId === "unassigned") {
-      return assigneeOptions.find((o) => o.id === "unassigned") ?? null;
-    }
-    if (assigneeId) {
-      return assigneeOptions.find((o) => o.id === assigneeId) ?? null;
-    }
-    if (isUnassigned(card.assigneeInitials)) {
-      return assigneeOptions.find((o) => o.id === "unassigned") ?? null;
-    }
-    const match = assigneeOptions.find(
-      (o) => !o.unassigned && o.initials === card.assigneeInitials
-    );
-    if (match) return match;
-    return {
-      id: "__current",
-      name: card.assigneeInitials,
-      initials: card.assigneeInitials,
-      color: card.assigneeColor,
-    };
-  }, [assigneeId, assigneeOptions, card]);
 
   if (!card) return null;
 
@@ -163,12 +128,15 @@ export default function TaskDetailPanel({
         assigneeColor: UNASSIGNED_COLOR,
       };
     }
-    if (assigneeId && selectedOption && !selectedOption.unassigned) {
-      return {
-        assigneeId,
-        assigneeInitials: selectedOption.initials,
-        assigneeColor: selectedOption.color,
-      };
+    if (assigneeId) {
+      const opt = assigneeOptions.find((o) => o.id === assigneeId);
+      if (opt && !opt.unassigned) {
+        return {
+          assigneeId,
+          assigneeInitials: opt.initials,
+          assigneeColor: opt.color,
+        };
+      }
     }
     return {};
   };
@@ -210,68 +178,101 @@ export default function TaskDetailPanel({
     setTimeout(() => loadActivityFeed(card.id), 400);
   };
 
-  const statusStyle = getColumnStatusStyle(
-    columns.findIndex((c) => c.id === currentColumn?.id)
-  );
+  const fieldClass =
+    "w-full rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-white dark:bg-[#252530] px-3 py-2.5 text-sm text-foreground outline-none focus:ring-1 focus:ring-violet-500/40 transition-colors";
 
   return (
-    <aside className="w-full sm:w-[400px] lg:w-[420px] flex-shrink-0 border-l border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#1a1a24] flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#ead7c3] dark:border-white/[0.06] flex-shrink-0">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-gray-400">
-          Task
-        </span>
-        <button
-          onClick={closeTask}
-          aria-label="Close task panel"
-          className="p-1.5 rounded-md hover:bg-[#dce0d9] dark:hover:bg-white/[0.05] text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
-        >
-          <X className="w-4 h-4" />
-        </button>
-      </div>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open) closeTask();
+      }}
+    >
+      <DialogContent
+        animated={false}
+        showCloseButton
+        className="sm:max-w-2xl lg:max-w-3xl max-h-[90vh] p-0 gap-0 overflow-hidden flex flex-col bg-[#fbf6ef] dark:bg-[#1a1a24] border-[#ead7c3] dark:border-white/[0.08] ring-[#ead7c3]/50 antialiased"
+      >
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#ead7c3] dark:border-white/[0.08] flex-shrink-0">
+          <div className="flex items-center gap-2 pr-8">
+            <span className="text-sm font-medium text-muted-foreground">
+              Task details
+            </span>
+            {saveState === "saving" && (
+              <span className="text-xs text-muted-foreground">Saving...</span>
+            )}
+            {saveState === "saved" && (
+              <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                Saved
+              </span>
+            )}
+          </div>
+        </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="px-6 py-6 space-y-7">
           <input
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={handleSave}
             onKeyDown={(e) => e.key === "Enter" && handleSave()}
-            className="w-full text-[15px] font-semibold text-gray-900 dark:text-white bg-transparent outline-none placeholder:text-gray-400"
+            className="w-full text-xl font-semibold text-foreground bg-transparent outline-none placeholder:text-muted-foreground"
             placeholder="Task title"
           />
 
-          {/* Property bar */}
-          <div className="flex flex-wrap gap-2">
-            <div className="flex items-center gap-1.5">
-              <CircleDot className="w-3 h-3 text-gray-400" />
-              <select
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                Status
+              </label>
+              <StatusPickerDropdown
+                columns={columns}
                 value={currentColumn?.id ?? ""}
-                onChange={(e) => handleStatusChange(e.target.value)}
-                className={`rounded-md border px-2 py-1 text-[11px] font-medium outline-none focus:ring-1 focus:ring-violet-500/40 ${statusStyle.chip}`}
-                aria-label="Status"
-              >
-                {columns.map((col) => (
-                  <option key={col.id} value={col.id}>
-                    {col.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <Flag className="w-3 h-3 text-gray-400" />
-              <PriorityPicker
-                value={priority}
-                onChange={(p) => {
-                  setPriority(p);
-                  updateCard(card.id, { priority: p });
-                }}
-                size="sm"
+                onChange={handleStatusChange}
               />
             </div>
 
-            <div className="flex items-center gap-1.5">
-              <Calendar className="w-3 h-3 text-gray-400" />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Flag className="w-3.5 h-3.5" />
+                  Priority
+                </label>
+                <div className="flex items-center h-[42px] px-1">
+                  <PriorityPicker
+                    value={priority}
+                    onChange={(p) => {
+                      setPriority(p);
+                      updateCard(card.id, { priority: p });
+                    }}
+                    size="sm"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                  <Hash className="w-3.5 h-3.5" />
+                  Story points
+                </label>
+                <div className="flex items-center h-[42px] px-1">
+                  <StoryPointsPicker
+                    value={storyPoints}
+                    onChange={(pts) => {
+                      setStoryPoints(pts);
+                      updateCard(card.id, { storyPoints: pts });
+                    }}
+                    size="sm"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <Calendar className="w-3.5 h-3.5" />
+                Due date
+              </label>
               <input
                 type="date"
                 value={dueDate}
@@ -279,63 +280,64 @@ export default function TaskDetailPanel({
                   setDueDate(e.target.value);
                   updateCard(card.id, { dueDate: e.target.value });
                 }}
-                className="rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-2 py-1 text-[11px] text-gray-800 dark:text-gray-100 outline-none [color-scheme:dark]"
+                className={`${fieldClass} [color-scheme:dark]`}
                 aria-label="Due date"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                Assignee
+              </label>
+              <AssigneePickerDropdown
+                options={assigneeOptions}
+                assigneeId={assigneeId}
+                onAssigneeIdChange={(id) => {
+                  setAssigneeId(id);
+                  if (id === "unassigned") {
+                    updateCard(card.id, {
+                      assigneeId: null,
+                      assigneeInitials: "",
+                      assigneeColor: UNASSIGNED_COLOR,
+                    });
+                  } else {
+                    const opt = assigneeOptions.find((o) => o.id === id);
+                    updateCard(card.id, {
+                      assigneeId: id,
+                      ...(opt && !opt.unassigned
+                        ? {
+                            assigneeInitials: opt.initials,
+                            assigneeColor: opt.color,
+                          }
+                        : {}),
+                    });
+                  }
+                  setTimeout(() => loadActivityFeed(card.id), 400);
+                }}
+                label=""
               />
             </div>
           </div>
 
-          <div>
-            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5 block">
-              Assignee
-            </label>
-            <AssigneePickerInline
-              options={assigneeOptions}
-              selectedOption={selectedOption}
-              onSelect={(id) => {
-                setAssigneeId(id);
-                if (id === "unassigned") {
-                  updateCard(card.id, {
-                    assigneeId: null,
-                    assigneeInitials: "",
-                    assigneeColor: UNASSIGNED_COLOR,
-                  });
-                } else {
-                  const opt = assigneeOptions.find((o) => o.id === id);
-                  updateCard(card.id, {
-                    assigneeId: id,
-                    ...(opt && !opt.unassigned
-                      ? {
-                          assigneeInitials: opt.initials,
-                          assigneeColor: opt.color,
-                        }
-                      : {}),
-                  });
-                }
-                setTimeout(() => loadActivityFeed(card.id), 400);
-              }}
-            />
-          </div>
-
-          <div>
-            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5 block">
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
               Description
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               onBlur={handleSave}
-              rows={3}
+              rows={4}
               placeholder="Add a description..."
-              className="w-full rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-3 py-2 text-[13px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 dark:focus:border-violet-500 transition-colors resize-none"
+              className={`${fieldClass} resize-none`}
             />
           </div>
 
-          <div>
-            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5 block">
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-muted-foreground">
               Labels
             </label>
-            <LabelPicker
+            <LabelPickerDropdown
               labels={availableLabels}
               selectedLabels={labels}
               onToggle={(label) => {
@@ -360,20 +362,6 @@ export default function TaskDetailPanel({
             />
           </div>
 
-          <div>
-            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5 block">
-              Story Points
-            </label>
-            <StoryPointsPicker
-              value={storyPoints}
-              onChange={(pts) => {
-                setStoryPoints(pts);
-                updateCard(card.id, { storyPoints: pts });
-              }}
-              size="sm"
-            />
-          </div>
-
           <SubtaskList cardId={card.id} subtasks={subtasks} />
 
           <ActivityFeed
@@ -381,33 +369,23 @@ export default function TaskDetailPanel({
             items={activityItems}
             loading={feedLoading}
           />
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-2 p-4 border-t border-[#ead7c3] dark:border-white/[0.06] flex-shrink-0">
-        <button
-          onClick={handleSave}
-          disabled={!title.trim() || saveState === "saving"}
-          className="flex-1 py-2 rounded-md bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-[13px] font-medium text-white transition-colors"
-        >
-          {saveState === "saving"
-            ? "Saving..."
-            : saveState === "saved"
-              ? "Saved!"
-              : "Save"}
-        </button>
-        <button
-          onClick={handleDelete}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-md text-[13px] font-medium transition-colors ${
-            confirmDelete
-              ? "bg-red-600 hover:bg-red-500 text-white"
-              : "text-red-500 hover:bg-red-100/50 dark:hover:bg-red-500/10"
-          }`}
-        >
-          <Trash2 className="w-3.5 h-3.5" />
-          {confirmDelete ? "Confirm" : "Delete"}
-        </button>
-      </div>
-    </aside>
+        <div className="flex items-center justify-end px-6 py-4 border-t border-[#ead7c3] dark:border-white/[0.08] flex-shrink-0">
+          <button
+            onClick={handleDelete}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              confirmDelete
+                ? "bg-red-600 hover:bg-red-500 text-white"
+                : "text-red-500 hover:bg-red-500/10"
+            }`}
+          >
+            <Trash2 className="w-4 h-4" />
+            {confirmDelete ? "Confirm delete" : "Delete task"}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

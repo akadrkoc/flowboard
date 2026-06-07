@@ -20,6 +20,7 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useBoardStore } from "@/store/boardStore";
 import { useFilteredColumns } from "@/hooks/useFilteredColumns";
 import KanbanColumn from "./KanbanColumn";
+import AddColumnHeader from "./AddColumnHeader";
 import KanbanCard from "./KanbanCard";
 import FilterEmptyBanner from "./views/FilterEmptyBanner";
 import type { Card } from "@/types/board";
@@ -115,12 +116,12 @@ export default function Board() {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex-1 overflow-y-auto md:overflow-x-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto md:overflow-x-auto md:overflow-y-hidden">
         <FilterEmptyBanner
           show={hasActiveFilters && totalFilteredCards === 0}
         />
         <div
-          className="flex flex-col md:flex-row gap-3 md:gap-5 p-3 sm:p-4 md:p-6 pb-4"
+          className="flex flex-col md:flex-row md:items-start gap-3 md:gap-5 px-3 sm:px-4 md:px-6 py-3 sm:py-4 md:py-6 md:h-full md:min-w-max"
           style={{ justifyContent: "safe center" }}
         >
           {filteredColumns.map((column, index) => (
@@ -128,9 +129,11 @@ export default function Board() {
               key={column.id}
               column={column}
               index={index}
-              isLast={index === filteredColumns.length - 1}
             />
           ))}
+          <div className="flex-shrink-0">
+            <AddColumnHeader />
+          </div>
         </div>
       </div>
 
