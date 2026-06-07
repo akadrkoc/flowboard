@@ -52,17 +52,13 @@ cd flowboard
 npm install
 ```
 
-2. Create a `.env.local` file:
+2. Copy the environment template and fill in your values:
 
+```bash
+cp .env.example .env.local
 ```
-MONGODB_URI=mongodb+srv://...
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your-secret-key
-GITHUB_CLIENT_ID=...
-GITHUB_CLIENT_SECRET=...
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-```
+
+Required variables: `MONGODB_URI`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, and at least one OAuth provider (`GITHUB_*` or `GOOGLE_*`). Optional: `PORT` (default `3000`), `GRAPHQL_RATE_LIMIT` (default `120` requests/min).
 
 3. Start the development server:
 

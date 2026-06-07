@@ -28,14 +28,17 @@ src/
     api/
       graphql/route.ts    # Apollo Server GraphQL endpoint (auth context)
       auth/[...nextauth]/ # NextAuth.js API route
-      test-db/route.ts    # MongoDB baglanti testi
   components/
     Board.tsx             # DndContext + kolon layout
     KanbanColumn.tsx      # Tekil kolon (SortableContext)
     KanbanCard.tsx        # Tekil kart (useSortable)
     AddCardForm.tsx       # Yeni kart ekleme dialog
-    Navbar.tsx            # Ust navigasyon (user avatar, logout)
+    CardDetailModal.tsx   # Kart detay / duzenleme dialog
+    FilterBar.tsx         # Kart filtreleme ve arama
+    Navbar.tsx            # Ust navigasyon (board switcher, sprint, members)
     StatsBar.tsx          # Alt istatistik bari
+    BulkActionsBar.tsx    # Toplu secim islemleri
+    KeyboardShortcuts.tsx # Klavye kisayollari
     SessionWrapper.tsx    # NextAuth SessionProvider wrapper
     analytics/
       AnalyticsDashboard.tsx  # Ana analytics sayfasi
@@ -47,24 +50,26 @@ src/
   graphql/
     typeDefs.ts           # GraphQL schema
     resolvers.ts          # GraphQL resolvers (auth context destekli)
-    operations.ts         # Client-side query/mutation strings
+    auth.ts               # Auth helpers ve input validation
   lib/
     mongodb.ts            # Mongoose connection helper (cached)
     graphqlFetch.ts       # Lightweight GraphQL client (fetch-based)
     socket.ts             # Socket.io client singleton
     auth.ts               # NextAuth config (providers, callbacks)
+    assignee.ts           # Assignee initials/color helpers
+    rateLimit.ts          # In-memory rate limiter (GraphQL + Socket.io)
   models/
     Board.ts              # Mongoose Board model
     Column.ts             # Mongoose Column model
     Card.ts               # Mongoose Card model
     User.ts               # Mongoose User model
+    Sprint.ts             # Mongoose Sprint model
+    Comment.ts            # Mongoose Comment model
   store/
-    boardStore.ts         # Zustand store (API + Socket.io entegreli)
+    boardStore.ts         # Zustand store (GraphQL query strings + API + Socket.io)
   types/
     board.ts              # Card, Column, Priority tipleri
   middleware.ts           # NextAuth middleware (route korumasi)
-  data/
-    mockData.ts           # Ornek veriler (Phase 1 legacy)
 ```
 
 ## Commands
@@ -78,6 +83,8 @@ npm run lint     # ESLint
 
 ## Environment Variables
 
+Copy `.env.example` to `.env.local` and fill in values.
+
 ```
 MONGODB_URI=mongodb+srv://...
 NEXTAUTH_URL=http://localhost:3000
@@ -86,6 +93,8 @@ GITHUB_CLIENT_ID=...
 GITHUB_CLIENT_SECRET=...
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...
+PORT=3000                  # optional, default 3000
+GRAPHQL_RATE_LIMIT=120     # optional, requests/min per user/IP
 ```
 
 ---
@@ -110,7 +119,7 @@ GOOGLE_CLIENT_SECRET=...
 - [x] Dark mode (varsayilan acik, toggle mevcut)
 - [x] Navbar: logo, sprint badge, online avatarlar, view switcher
 - [x] StatsBar: toplam kart, done, story points, progress bar, online indicator
-- [x] Mock data ile tam calisan board
+- [x] Mock data ile tam calisan board (Phase 2'de GraphQL'e gecildi, mockData kaldirildi)
 - [x] Responsive: yatay scroll (mobil), navbar collapse
 - [x] UI primitives: Avatar, Badge, Dialog, Input, Select, Switch, Textarea, Tooltip
 
@@ -163,6 +172,21 @@ Navbar'daki "Analytics" butonuyla acilir (activeView state).
 
 ---
 
+### PHASE 5+ - Collaboration & Productivity [TAMAMLANDI]
+
+- [x] Multi-board destegi (board switcher, create board)
+- [x] Uye davet/cikar (inviteMember, removeMember)
+- [x] Sprint yonetimi (create, complete, active sprint)
+- [x] Kart yorumlari (comments)
+- [x] Kart detay modal (CardDetailModal)
+- [x] Filtreleme ve arama (FilterBar)
+- [x] Toplu secim ve islemler (BulkActionsBar)
+- [x] Klavye kisayollari (KeyboardShortcuts)
+- [x] Undo toast (soft delete restore)
+- [x] Kolon ekleme/silme/yeniden adlandirma
+
+---
+
 ## Conventions
 
 - Component dosyalari PascalCase: `KanbanCard.tsx`
@@ -172,6 +196,6 @@ Navbar'daki "Analytics" butonuyla acilir (activeView state).
 - Tum bilesenler `"use client"` directive kullanir (client-side interactivity)
 - Tailwind dark mode: class-based (`dark:` prefix)
 - Import alias: `@/` -> `src/`
-- GraphQL: Apollo Server (backend), graphqlFetch (frontend - lightweight)
+- GraphQL: Apollo Server (backend), graphqlFetch + inline query strings in boardStore.ts (frontend)
 - Real-time: Socket.io event-based (join-board, card-moved, card-created, card-updated, card-deleted)
 - Auth: NextAuth.js v4, JWT session, middleware route korumasi
