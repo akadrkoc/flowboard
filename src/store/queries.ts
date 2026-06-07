@@ -27,6 +27,7 @@ export const GET_BOARD_QUERY = `
           priority
           dueDate
           storyPoints
+          assigneeId
           assigneeInitials
           assigneeColor
           columnId
@@ -48,6 +49,7 @@ export const CREATE_CARD_MUTATION = `
       priority
       dueDate
       storyPoints
+      assigneeId
       assigneeInitials
       assigneeColor
       columnId
@@ -75,6 +77,7 @@ export const UPDATE_CARD_MUTATION = `
       priority
       dueDate
       storyPoints
+      assigneeId
       assigneeInitials
       assigneeColor
       columnId
@@ -99,6 +102,7 @@ export const RESTORE_CARD_MUTATION = `
       priority
       dueDate
       storyPoints
+      assigneeId
       assigneeInitials
       assigneeColor
       columnId
@@ -155,6 +159,58 @@ export const ADD_COMMENT_MUTATION = `
       authorImage
       createdAt
     }
+  }
+`;
+
+export const GET_ACTIVITY_FEED_QUERY = `
+  query GetActivityFeed($cardId: ID!) {
+    activityFeed(cardId: $cardId) {
+      id
+      type
+      text
+      actorName
+      actorImage
+      createdAt
+    }
+  }
+`;
+
+export const GET_SUBTASKS_QUERY = `
+  query GetSubtasks($cardId: ID!) {
+    subtasks(cardId: $cardId) {
+      id
+      cardId
+      title
+      completed
+      order
+    }
+  }
+`;
+
+export const ADD_SUBTASK_MUTATION = `
+  mutation AddSubtask($cardId: ID!, $title: String!) {
+    addSubtask(cardId: $cardId, title: $title) {
+      id
+      cardId
+      title
+      completed
+      order
+    }
+  }
+`;
+
+export const TOGGLE_SUBTASK_MUTATION = `
+  mutation ToggleSubtask($subtaskId: ID!) {
+    toggleSubtask(subtaskId: $subtaskId) {
+      id
+      completed
+    }
+  }
+`;
+
+export const DELETE_SUBTASK_MUTATION = `
+  mutation DeleteSubtask($subtaskId: ID!) {
+    deleteSubtask(subtaskId: $subtaskId)
   }
 `;
 

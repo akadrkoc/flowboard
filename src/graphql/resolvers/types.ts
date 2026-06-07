@@ -26,6 +26,8 @@ export const typeResolvers = {
     id: (parent: { _id: string }) => parent._id.toString(),
     columnId: (parent: { columnId: string }) => parent.columnId.toString(),
     boardId: (parent: { boardId: string }) => parent.boardId.toString(),
+    assigneeId: (parent: { assigneeId?: { toString(): string } | null }) =>
+      parent.assigneeId ? parent.assigneeId.toString() : null,
     createdAt: (parent: { createdAt?: Date | string | null }) =>
       parent.createdAt instanceof Date
         ? parent.createdAt.toISOString()
@@ -58,5 +60,10 @@ export const typeResolvers = {
       parent.createdAt instanceof Date
         ? parent.createdAt.toISOString()
         : (parent.createdAt ?? new Date().toISOString()),
+  },
+
+  Subtask: {
+    id: (parent: { _id: string }) => parent._id.toString(),
+    cardId: (parent: { cardId: string }) => parent.cardId.toString(),
   },
 };

@@ -68,8 +68,26 @@ export const typeDefs = `#graphql
     priority: String
     dueDate: String
     storyPoints: Int
+    assigneeId: ID
     assigneeInitials: String
     assigneeColor: String
+  }
+
+  type Subtask {
+    id: ID!
+    cardId: ID!
+    title: String!
+    completed: Boolean!
+    order: Int!
+  }
+
+  type ActivityItem {
+    id: ID!
+    type: String!
+    text: String!
+    actorName: String!
+    actorImage: String
+    createdAt: String!
   }
 
   type Query {
@@ -77,6 +95,8 @@ export const typeDefs = `#graphql
     board(id: ID!): Board
     me: User
     comments(cardId: ID!): [Comment!]!
+    subtasks(cardId: ID!): [Subtask!]!
+    activityFeed(cardId: ID!): [ActivityItem!]!
     boardMembers(boardId: ID!): [User!]!
     sprints(boardId: ID!): [Sprint!]!
     activeSprint(boardId: ID!): Sprint
@@ -95,6 +115,10 @@ export const typeDefs = `#graphql
     inviteMember(boardId: ID!, email: String!): Board!
     removeMember(boardId: ID!, userId: ID!): Board!
     addComment(cardId: ID!, text: String!): Comment!
+    addSubtask(cardId: ID!, title: String!): Subtask!
+    toggleSubtask(subtaskId: ID!): Subtask!
+    updateSubtask(subtaskId: ID!, title: String!): Subtask!
+    deleteSubtask(subtaskId: ID!): Boolean!
     createSprint(boardId: ID!, name: String!, startDate: String!, endDate: String!): Sprint!
     completeSprint(sprintId: ID!): Sprint!
   }

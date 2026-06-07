@@ -10,6 +10,23 @@ export interface BoardComment {
   createdAt: string;
 }
 
+export interface ActivityItem {
+  id: string;
+  type: string;
+  text: string;
+  actorName: string;
+  actorImage?: string;
+  createdAt: string;
+}
+
+export interface Subtask {
+  id: string;
+  cardId: string;
+  title: string;
+  completed: boolean;
+  order: number;
+}
+
 export interface BoardMember {
   id: string;
   name: string;
@@ -48,7 +65,7 @@ export interface BoardState {
     columnId: string,
     card: Omit<Card, "id" | "order" | "columnId">
   ) => void;
-  updateCard: (cardId: string, updates: Partial<Card>) => void;
+  updateCard: (cardId: string, updates: Partial<Card>) => Promise<void>;
   deleteCard: (cardId: string) => void;
   toggleDarkMode: () => void;
   setActiveView: (view: BoardView) => void;
@@ -63,8 +80,15 @@ export interface BoardState {
   renameColumn: (columnId: string, name: string) => void;
   deleteColumn: (columnId: string) => void;
   commentsByCard: Record<string, BoardComment[]>;
+  activityFeedByCard: Record<string, ActivityItem[]>;
+  subtasksByCard: Record<string, Subtask[]>;
   loadComments: (cardId: string) => Promise<void>;
+  loadActivityFeed: (cardId: string) => Promise<void>;
+  loadSubtasks: (cardId: string) => Promise<void>;
   addComment: (cardId: string, text: string) => void;
+  addSubtask: (cardId: string, title: string) => Promise<void>;
+  toggleSubtask: (subtaskId: string, cardId: string) => Promise<void>;
+  deleteSubtask: (subtaskId: string, cardId: string) => Promise<void>;
   members: BoardMember[];
   loadMembers: () => Promise<void>;
   inviteMember: (email: string) => Promise<void>;
