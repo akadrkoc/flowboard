@@ -8,6 +8,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts";
+import ChartEmptyState from "@/components/ui/ChartEmptyState";
 
 interface Props {
   data: { name: string; count: number }[];
@@ -16,11 +17,19 @@ interface Props {
 const COLORS = ["#8b5cf6", "#06b6d4", "#f59e0b", "#ef4444", "#10b981", "#ec4899"];
 
 export default function CardsByMember({ data }: Props) {
+  const hasData = data.length > 0;
+
   return (
     <div className="bg-[#fbf6ef] dark:bg-[#1e1e2e] rounded-xl border border-[#ead7c3] dark:border-white/[0.06] p-4 sm:p-5">
       <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200 mb-3 sm:mb-4">
         Cards by Member
       </h3>
+      {!hasData ? (
+        <ChartEmptyState
+          title="No active cards"
+          description="Assign cards to team members to see workload distribution"
+        />
+      ) : (
       <div className="h-[180px] sm:h-[220px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -56,6 +65,7 @@ export default function CardsByMember({ data }: Props) {
           </PieChart>
         </ResponsiveContainer>
       </div>
+      )}
     </div>
   );
 }

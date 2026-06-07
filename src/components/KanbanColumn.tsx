@@ -130,6 +130,8 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen(!menuOpen)}
+              aria-label="Column options"
+              aria-expanded={menuOpen}
               className="p-1 rounded hover:bg-[#dce0d9] dark:hover:bg-white/[0.05] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
@@ -176,6 +178,12 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
               <KanbanCard key={card.id} card={card} />
             ))}
           </SortableContext>
+
+          {column.cards.length === 0 && (
+            <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center py-4 px-2">
+              Drop cards here
+            </p>
+          )}
 
           {/* Add card */}
           <div className="pt-1">

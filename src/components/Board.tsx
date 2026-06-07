@@ -21,6 +21,7 @@ import { useBoardStore } from "@/store/boardStore";
 import KanbanColumn from "./KanbanColumn";
 import KanbanCard from "./KanbanCard";
 import type { Card } from "@/types/board";
+import { SearchX } from "lucide-react";
 
 export default function Board() {
   const columns = useBoardStore((s) => s.columns);
@@ -63,6 +64,17 @@ export default function Board() {
       }),
     }));
   }, [columns, searchQuery, filterPriority, filterLabel, filterAssignee]);
+
+  const hasActiveFilters = !!(
+    searchQuery ||
+    filterPriority ||
+    filterLabel ||
+    filterAssignee
+  );
+  const totalFilteredCards = filteredColumns.reduce(
+    (sum, col) => sum + col.cards.length,
+    0
+  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -163,6 +175,12 @@ export default function Board() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex-1 overflow-y-auto md:overflow-x-auto">
+        {hasActiveFilters && totalFilteredCards === 0 && (
+          <div className="mx-3 sm:mx-4 md:mx-6 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-[12px]">
+            <SearchX className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>No cards match the current filters.</span>
+          </div>
+        )}
         <div
           className="flex flex-col md:flex-row gap-3 md:gap-5 p-3 sm:p-4 md:p-6 pb-4"
           style={{ justifyContent: "safe center" }}

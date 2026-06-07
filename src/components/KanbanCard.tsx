@@ -86,6 +86,18 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
     setModalOpen(true);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (isDragging || isDraggingOverlay) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      if (selectMode) {
+        toggleCardSelection(card.id);
+      } else {
+        setModalOpen(true);
+      }
+    }
+  };
+
   return (
     <>
       <div
@@ -93,12 +105,16 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
         style={style}
         {...attributes}
         {...listeners}
+        role="button"
+        tabIndex={selectMode || isDraggingOverlay ? -1 : 0}
+        aria-label={`Open card: ${card.title}`}
         onPointerDown={(e) => {
           handlePointerDown();
           listeners?.onPointerDown?.(e);
         }}
         onPointerMove={handlePointerMove}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
         className={`
           group relative rounded-lg border border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#1e1e2e] p-3 sm:p-3.5
           shadow-sm hover:shadow-md hover:border-[#d4c4ae] dark:hover:border-white/[0.12]

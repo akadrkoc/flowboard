@@ -45,8 +45,8 @@ export default function UserControls() {
 
       <button
         onClick={toggleDarkMode}
+        aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
         className="p-1.5 rounded-md hover:bg-[#dce0d9] dark:hover:bg-white/[0.05] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-        title="Toggle theme"
       >
         {darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
       </button>
@@ -54,8 +54,8 @@ export default function UserControls() {
       {user && (
         <button
           onClick={() => signOut({ callbackUrl: "/login" })}
+          aria-label="Sign out"
           className="p-1.5 rounded-md hover:bg-[#dce0d9] dark:hover:bg-white/[0.05] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-          title="Sign out"
         >
           <LogOut className="w-4 h-4" />
         </button>

@@ -180,10 +180,10 @@ export default function AnalyticsDashboard() {
   const totalCompleted = completedInRange.length;
 
   // On-Time Rate: dueDate'i olan ve bu aralikta tamamlanan kartlardan,
-  // completedAt <= dueDate olanlarin orani. Boyle kartlar yoksa N/A (0).
-  const onTimeRate = useMemo(() => {
+  // completedAt <= dueDate olanlarin orani. Boyle kartlar yoksa N/A.
+  const onTimeRate = useMemo((): number | null => {
     const withDue = completedInRange.filter((c) => c.dueDate);
-    if (withDue.length === 0) return 0;
+    if (withDue.length === 0) return null;
     const onTime = withDue.filter((c) => {
       const completed = new Date(c.completedAt!).getTime();
       // dueDate "YYYY-MM-DD" formatinda; gunun sonuna kadar toleransli sayalim.
