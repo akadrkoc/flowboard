@@ -8,6 +8,7 @@ import {
 import { useDroppable } from "@dnd-kit/core";
 import type { Column } from "@/types/board";
 import { useBoardStore } from "@/store/boardStore";
+import { getColumnStatusStyle } from "@/lib/columnColors";
 import KanbanCard from "./KanbanCard";
 import AddCardForm from "./AddCardForm";
 import { MoreHorizontal, Trash2, Plus } from "lucide-react";
@@ -18,13 +19,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-
-const accentColors = [
-  "bg-blue-500",
-  "bg-amber-500",
-  "bg-violet-500",
-  "bg-emerald-500",
-];
 
 interface KanbanColumnProps {
   column: Column;
@@ -86,16 +80,16 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
     setAddDialogOpen(false);
   };
 
+  const statusStyle = getColumnStatusStyle(index);
+
   return (
     <div className="flex-shrink-0 flex flex-col md:flex-row gap-2">
       <div className="w-full md:w-[280px] lg:w-[300px] flex flex-col md:max-h-full">
-        {/* Column header */}
-        <div className="flex items-center gap-2.5 px-1 mb-3">
-          <span
-            className={`w-2.5 h-2.5 rounded-full ${
-              accentColors[index % accentColors.length]
-            }`}
-          />
+        {/* Column header — status chip */}
+        <div
+          className={`flex items-center gap-2 px-2.5 py-1.5 mb-3 rounded-lg border ${statusStyle.chip}`}
+        >
+          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusStyle.dot}`} />
           {editing ? (
             <input
               ref={inputRef}
@@ -109,11 +103,11 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
                   setEditing(false);
                 }
               }}
-              className="flex-1 text-[13px] font-semibold text-gray-700 dark:text-gray-200 tracking-tight bg-transparent border-b border-violet-400 outline-none px-0.5"
+              className="flex-1 text-[12px] font-semibold bg-transparent outline-none border-b border-current/30 px-0.5"
             />
           ) : (
             <h2
-              className="text-[13px] font-semibold text-gray-700 dark:text-gray-200 tracking-tight cursor-pointer"
+              className="flex-1 text-[12px] font-semibold tracking-tight cursor-pointer truncate"
               onDoubleClick={() => {
                 setEditName(column.title);
                 setEditing(true);
@@ -122,7 +116,7 @@ export default function KanbanColumn({ column, index = 0, isLast }: KanbanColumn
               {column.title}
             </h2>
           )}
-          <span className="ml-auto text-[11px] font-medium text-gray-500 bg-[#dce0d9] dark:bg-white/[0.05] px-2 py-0.5 rounded-full">
+          <span className="text-[10px] font-medium opacity-70 px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/5">
             {column.cards.length}
           </span>
 

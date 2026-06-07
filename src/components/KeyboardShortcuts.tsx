@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { useBoardStore } from "@/store/boardStore";
+import { useBoardNavigation } from "@/hooks/useBoardNavigation";
 import { X } from "lucide-react";
 
 // Hangi elemanlarda event'i yok sayacagimizi kontrol eder. Kullanici bir
@@ -20,11 +22,13 @@ const SHORTCUTS: { keys: string; description: string }[] = [
   { keys: "c", description: "Add card to first column" },
   { keys: "g then a", description: "Open Analytics view" },
   { keys: "g then k", description: "Open Kanban view" },
-  { keys: "Esc", description: "Close modal / cancel" },
+  { keys: "Esc", description: "Close task panel / modal" },
   { keys: "?", description: "Show this help" },
 ];
 
 export default function KeyboardShortcuts() {
+  const pathname = usePathname();
+  const { closeTask } = useBoardNavigation();
   const columns = useBoardStore((s) => s.columns);
   const requestAddCard = useBoardStore((s) => s.requestAddCard);
   const setActiveView = useBoardStore((s) => s.setActiveView);
@@ -119,6 +123,10 @@ export default function KeyboardShortcuts() {
           return;
         }
         case "Escape": {
+          if (pathname.includes("/task/")) {
+            e.preventDefault();
+            closeTask();
+          }
           resetGPending();
           return;
         }
@@ -132,7 +140,7 @@ export default function KeyboardShortcuts() {
       window.removeEventListener("keydown", handler);
       if (gTimer) clearTimeout(gTimer);
     };
-  }, [columns, requestAddCard, setActiveView, activeView, helpOpen]);
+  }, [columns, requestAddCard, setActiveView, activeView, helpOpen, pathname, closeTask]);
 
   if (!helpOpen) return null;
 

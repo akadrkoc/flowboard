@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useRef } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { Card as CardType } from "@/types/board";
 import { Calendar, Flame, AlertCircle, Check, UserX } from "lucide-react";
-import CardDetailModal from "@/components/CardDetailModal";
 import { useBoardStore } from "@/store/boardStore";
+import { useBoardNavigation } from "@/hooks/useBoardNavigation";
 import { isUnassigned } from "@/lib/assignee";
 
 function getDueDateStatus(dueDate: string): "overdue" | "today" | "normal" {
@@ -28,10 +28,10 @@ const labelColors: Record<string, string> = {
   Docs: "bg-slate-500/20 text-slate-600 dark:text-slate-300",
 };
 
-const priorityColors: Record<string, string> = {
-  high: "bg-red-500",
-  med: "bg-amber-500",
-  low: "bg-emerald-500",
+const priorityBadge: Record<string, string> = {
+  high: "bg-red-500/15 text-red-600 dark:text-red-400",
+  med: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  low: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
 };
 
 interface KanbanCardProps {
@@ -40,8 +40,8 @@ interface KanbanCardProps {
 }
 
 export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps) {
-  const [modalOpen, setModalOpen] = useState(false);
   const didDrag = useRef(false);
+  const { openTask } = useBoardNavigation();
 
   const selectMode = useBoardStore((s) => s.selectMode);
   const isSelected = useBoardStore((s) => !!s.selectedCardIds[card.id]);
@@ -57,8 +57,6 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
   } = useSortable({
     id: card.id,
     data: { type: "card", card },
-    // Secim modunda drag-drop'u devre disi birakalim; boylece tikla =>
-    // secim net calisir ve yanlislikla kart tasinmaz.
     disabled: selectMode,
   });
 
@@ -69,164 +67,141 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
     scale: isDraggingOverlay ? "1.03" : "1",
   };
 
-  const handlePointerDown = () => {
-    didDrag.current = false;
-  };
-
-  const handlePointerMove = () => {
-    didDrag.current = true;
-  };
-
-  const handleClick = () => {
+  const openCard = () => {
     if (isDragging || didDrag.current || isDraggingOverlay) return;
     if (selectMode) {
       toggleCardSelection(card.id);
       return;
     }
-    setModalOpen(true);
+    openTask(card.id);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (isDragging || isDraggingOverlay) return;
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      if (selectMode) {
-        toggleCardSelection(card.id);
-      } else {
-        setModalOpen(true);
-      }
+      openCard();
     }
   };
 
   return (
-    <>
-      <div
-        ref={setNodeRef}
-        style={style}
-        {...attributes}
-        {...listeners}
-        role="button"
-        tabIndex={selectMode || isDraggingOverlay ? -1 : 0}
-        aria-label={`Open card: ${card.title}`}
-        onPointerDown={(e) => {
-          handlePointerDown();
-          listeners?.onPointerDown?.(e);
-        }}
-        onPointerMove={handlePointerMove}
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
-        className={`
-          group relative rounded-lg border border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#1e1e2e] p-3 sm:p-3.5
-          shadow-sm hover:shadow-md hover:border-[#d4c4ae] dark:hover:border-white/[0.12]
-          transition-all duration-150 cursor-grab active:cursor-grabbing
-          ${isDraggingOverlay ? "shadow-xl shadow-black/20 dark:shadow-black/30 ring-1 ring-[#ead7c3] dark:ring-white/10" : ""}
-          ${isDragging ? "opacity-40" : ""}
-          ${isSelected ? "ring-2 ring-violet-500 dark:ring-violet-400" : ""}
-        `}
-      >
-        {/* Selection checkbox (only in select mode) */}
-        {selectMode && (
-          <div
-            className={`absolute top-2 right-2 w-5 h-5 rounded-md flex items-center justify-center border transition-colors ${
-              isSelected
-                ? "bg-violet-600 border-violet-600"
-                : "bg-[#fbf6ef] dark:bg-[#1e1e2e] border-[#d4c4ae] dark:border-white/20"
-            }`}
-            aria-hidden
-          >
-            {isSelected && <Check className="w-3 h-3 text-white" />}
-          </div>
-        )}
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      role="button"
+      tabIndex={selectMode || isDraggingOverlay ? -1 : 0}
+      aria-label={`Open card: ${card.title}`}
+      onPointerDown={(e) => {
+        didDrag.current = false;
+        listeners?.onPointerDown?.(e);
+      }}
+      onPointerMove={() => {
+        didDrag.current = true;
+      }}
+      onClick={openCard}
+      onKeyDown={handleKeyDown}
+      className={`
+        group relative rounded-lg border border-[#ead7c3] dark:border-white/[0.06] bg-[#fbf6ef] dark:bg-[#1e1e2e] p-2.5
+        shadow-sm hover:shadow-md hover:border-[#d4c4ae] dark:hover:border-white/[0.12]
+        transition-all duration-150 cursor-grab active:cursor-grabbing
+        ${isDraggingOverlay ? "shadow-xl shadow-black/20 dark:shadow-black/30 ring-1 ring-[#ead7c3] dark:ring-white/10" : ""}
+        ${isDragging ? "opacity-40" : ""}
+        ${isSelected ? "ring-2 ring-violet-500 dark:ring-violet-400" : ""}
+      `}
+    >
+      {selectMode && (
+        <div
+          className={`absolute top-2 right-2 w-5 h-5 rounded-md flex items-center justify-center border transition-colors z-10 ${
+            isSelected
+              ? "bg-violet-600 border-violet-600"
+              : "bg-[#fbf6ef] dark:bg-[#1e1e2e] border-[#d4c4ae] dark:border-white/20"
+          }`}
+          aria-hidden
+        >
+          {isSelected && <Check className="w-3 h-3 text-white" />}
+        </div>
+      )}
 
-        {/* Labels */}
-        <div className="flex flex-wrap gap-1.5 mb-2.5">
-          {card.labels.map((label) => (
+      {/* Top row: priority + assignee */}
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <span
+          className={`px-1.5 py-0.5 rounded text-[10px] font-medium uppercase ${
+            priorityBadge[card.priority]
+          }`}
+        >
+          {card.priority}
+        </span>
+        {!selectMode &&
+          (isUnassigned(card.assigneeInitials) ? (
+            <div
+              className="w-5 h-5 rounded-full bg-[#dce0d9] dark:bg-white/[0.06] flex items-center justify-center border border-dashed border-gray-400/60 dark:border-white/20 flex-shrink-0"
+              title="Unassigned"
+            >
+              <UserX className="w-2.5 h-2.5 text-gray-400" />
+            </div>
+          ) : (
+            <div
+              className={`w-5 h-5 rounded-full ${card.assigneeColor} flex items-center justify-center flex-shrink-0`}
+              title={card.assigneeInitials}
+            >
+              <span className="text-[8px] font-bold text-white">
+                {card.assigneeInitials}
+              </span>
+            </div>
+          ))}
+      </div>
+
+      <p className="text-[13px] font-medium text-gray-800 dark:text-gray-100 leading-snug mb-1.5 pr-1">
+        {card.title}
+      </p>
+
+      {card.labels.length > 0 && (
+        <div className="flex flex-wrap gap-1 mb-2">
+          {card.labels.slice(0, 3).map((label) => (
             <span
               key={label}
-              className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
                 labelColors[label] || "bg-gray-500/20 text-gray-600 dark:text-gray-300"
               }`}
             >
               {label}
             </span>
           ))}
-        </div>
-
-        {/* Title */}
-        <p className="text-[13px] font-medium text-gray-800 dark:text-gray-100 leading-snug mb-1">
-          {card.title}
-        </p>
-
-        {/* Description (truncated) */}
-        {card.description && (
-          <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-snug mb-2 truncate">
-            {card.description}
-          </p>
-        )}
-
-        {/* Bottom row */}
-        <div className="flex items-center justify-between flex-wrap gap-y-1.5">
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {/* Priority dot */}
-            <span
-              className={`w-2 h-2 rounded-full ${priorityColors[card.priority]}`}
-              title={`Priority: ${card.priority}`}
-            />
-
-            {/* Due date */}
-            {card.dueDate && (() => {
-              const status = getDueDateStatus(card.dueDate);
-              return (
-                <span className={`flex items-center gap-1 text-[11px] ${
-                  status === "overdue"
-                    ? "text-red-500 dark:text-red-400 font-medium"
-                    : status === "today"
-                    ? "text-amber-500 dark:text-amber-400 font-medium"
-                    : "text-gray-500 dark:text-gray-400"
-                }`}>
-                  {status === "overdue" ? (
-                    <AlertCircle className="w-3 h-3" />
-                  ) : (
-                    <Calendar className="w-3 h-3" />
-                  )}
-                  {card.dueDate}
-                </span>
-              );
-            })()}
-
-            {/* Story points */}
-            <span className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 bg-[#dce0d9] dark:bg-white/[0.05] px-1.5 py-0.5 rounded">
-              <Flame className="w-3 h-3" />
-              {card.storyPoints}
-            </span>
-          </div>
-
-          {/* Assignee avatar */}
-          {isUnassigned(card.assigneeInitials) ? (
-            <div
-              className="w-6 h-6 rounded-full bg-[#dce0d9] dark:bg-white/[0.06] flex items-center justify-center border border-dashed border-gray-400/60 dark:border-white/20"
-              title="Unassigned"
-            >
-              <UserX className="w-3 h-3 text-gray-400" />
-            </div>
-          ) : (
-            <div
-              className={`w-6 h-6 rounded-full ${card.assigneeColor} flex items-center justify-center`}
-              title={card.assigneeInitials}
-            >
-              <span className="text-[10px] font-bold text-white">
-                {card.assigneeInitials}
-              </span>
-            </div>
+          {card.labels.length > 3 && (
+            <span className="text-[10px] text-gray-400">+{card.labels.length - 3}</span>
           )}
         </div>
-      </div>
+      )}
 
-      <CardDetailModal
-        card={card}
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-      />
-    </>
+      <div className="flex items-center gap-2 flex-wrap">
+        {card.dueDate && (() => {
+          const status = getDueDateStatus(card.dueDate);
+          return (
+            <span
+              className={`flex items-center gap-1 text-[10px] ${
+                status === "overdue"
+                  ? "text-red-500 dark:text-red-400 font-medium"
+                  : status === "today"
+                    ? "text-amber-500 dark:text-amber-400 font-medium"
+                    : "text-gray-500 dark:text-gray-400"
+              }`}
+            >
+              {status === "overdue" ? (
+                <AlertCircle className="w-3 h-3" />
+              ) : (
+                <Calendar className="w-3 h-3" />
+              )}
+              {card.dueDate}
+            </span>
+          );
+        })()}
+        <span className="flex items-center gap-0.5 text-[10px] text-gray-500 dark:text-gray-400 bg-[#dce0d9] dark:bg-white/[0.05] px-1.5 py-0.5 rounded">
+          <Flame className="w-2.5 h-2.5" />
+          {card.storyPoints}
+        </span>
+      </div>
+    </div>
   );
 }
