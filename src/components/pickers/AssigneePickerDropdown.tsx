@@ -29,14 +29,16 @@ export function AssigneePickerDropdown({
 
   return (
     <div>
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5">
-        {label}
-      </p>
+      {label ? (
+        <p className="text-xs font-medium text-muted-foreground mb-1.5">
+          {label}
+        </p>
+      ) : null}
       <div className="relative" ref={ref}>
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9]/50 dark:bg-white/[0.02] hover:bg-[#dce0d9] dark:hover:bg-white/[0.05] transition-colors"
+          className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border border-[#ead7c3] dark:border-white/[0.08] bg-white dark:bg-[#252530] hover:bg-[#f3ede4] dark:hover:bg-[#2a2a38] transition-colors"
           aria-haspopup="listbox"
           aria-expanded={open}
         >
@@ -44,7 +46,7 @@ export function AssigneePickerDropdown({
             {selectedOption ? (
               <AssigneeAvatar option={selectedOption} />
             ) : null}
-            <span className="text-[11px] font-medium text-gray-700 dark:text-gray-200 truncate">
+            <span className="text-xs font-medium text-foreground truncate">
               {selectedOption?.name ?? "Unassigned"}
             </span>
           </span>
@@ -58,7 +60,7 @@ export function AssigneePickerDropdown({
         {open && (
           <div
             role="listbox"
-            className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#fbf6ef] dark:bg-[#1e1e2e] shadow-lg p-1"
+            className="absolute z-[100] mt-1 w-full max-h-56 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg p-1"
           >
             {options.map((opt) => {
               const isSelected = opt.id === (selectedOption?.id ?? "");
@@ -75,7 +77,7 @@ export function AssigneePickerDropdown({
                   className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-sm text-left transition-colors ${
                     isSelected
                       ? "bg-violet-500/15 text-violet-600 dark:text-violet-300"
-                      : "hover:bg-[#dce0d9] dark:hover:bg-white/[0.05] text-gray-700 dark:text-gray-200"
+                      : "hover:bg-muted text-foreground"
                   }`}
                 >
                   <AssigneeAvatar option={opt} />

@@ -33,12 +33,12 @@ export default function SubtaskList({ cardId, subtasks }: SubtaskListProps) {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-2">
-        <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">
+      <div className="flex items-center justify-between mb-3">
+        <label className="text-xs font-medium text-muted-foreground">
           Subtasks
         </label>
         {subtasks.length > 0 && (
-          <span className="text-[10px] text-gray-400">
+          <span className="text-xs text-muted-foreground">
             {completed}/{subtasks.length}
           </span>
         )}
