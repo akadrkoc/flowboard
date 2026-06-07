@@ -5,7 +5,7 @@ import { Clock, Zap, CheckCircle2, TrendingUp } from "lucide-react";
 interface Props {
   avgCycleTime: number;
   velocity: number;
-  onTimeRate: number;
+  onTimeRate: number | null;
   totalCompleted: number;
   scopeLabel?: string;
 }
@@ -16,7 +16,7 @@ const safe = (v: number): number => (Number.isFinite(v) ? v : 0);
 
 const cards = [
   {
-    key: "cycleTime",
+    key: "cycleTime" as const,
     label: "Avg Cycle Time",
     icon: Clock,
     color: "text-violet-400",
@@ -24,7 +24,7 @@ const cards = [
     format: (v: number) => `${safe(v).toFixed(1)}d`,
   },
   {
-    key: "velocity",
+    key: "velocity" as const,
     label: "Velocity",
     icon: Zap,
     color: "text-amber-400",
@@ -32,15 +32,15 @@ const cards = [
     format: (v: number) => `${safe(v)} pts`,
   },
   {
-    key: "onTimeRate",
+    key: "onTimeRate" as const,
     label: "On-Time Rate",
     icon: TrendingUp,
     color: "text-emerald-400",
     bgColor: "bg-emerald-500/10",
-    format: (v: number) => `${safe(v)}%`,
+    format: (v: number | null) => (v === null ? "N/A" : `${safe(v)}%`),
   },
   {
-    key: "totalCompleted",
+    key: "totalCompleted" as const,
     label: "Completed",
     icon: CheckCircle2,
     color: "text-sky-400",
@@ -56,7 +56,7 @@ export default function StatCards({
   totalCompleted,
   scopeLabel,
 }: Props) {
-  const values: Record<string, number> = {
+  const values = {
     cycleTime: avgCycleTime,
     velocity,
     onTimeRate,
@@ -85,7 +85,9 @@ export default function StatCards({
               </span>
             </div>
             <div className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white">
-              {card.format(values[card.key])}
+              {card.key === "onTimeRate"
+                ? card.format(values.onTimeRate)
+                : card.format(values[card.key])}
             </div>
           </div>
         ))}

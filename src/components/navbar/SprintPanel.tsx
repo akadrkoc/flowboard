@@ -56,6 +56,8 @@ export default function SprintPanel() {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
+        aria-label="Manage sprint"
+        aria-expanded={open}
         className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-violet-500/15 text-violet-600 dark:text-violet-300 text-[11px] font-medium hover:bg-violet-500/25 transition-colors"
       >
         <Zap className="w-3 h-3" />
@@ -71,7 +73,7 @@ export default function SprintPanel() {
             <h3 className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">
               Sprint Management
             </h3>
-            <button onClick={() => setOpen(false)}>
+            <button onClick={() => setOpen(false)} aria-label="Close sprint panel">
               <X className="w-4 h-4 text-gray-400" />
             </button>
           </div>

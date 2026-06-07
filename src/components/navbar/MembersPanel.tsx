@@ -35,6 +35,8 @@ export default function MembersPanel() {
     <div className="relative">
       <button
         onClick={() => setOpen(!open)}
+        aria-label="Manage board members"
+        aria-expanded={open}
         className="flex items-center -space-x-1.5"
       >
         {members.slice(0, 3).map((m) => (
@@ -78,7 +80,7 @@ export default function MembersPanel() {
             <h3 className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">
               Members ({members.length})
             </h3>
-            <button onClick={() => setOpen(false)}>
+            <button onClick={() => setOpen(false)} aria-label="Close members panel">
               <X className="w-4 h-4 text-gray-400" />
             </button>
           </div>

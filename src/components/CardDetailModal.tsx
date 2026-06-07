@@ -53,6 +53,7 @@ export default function CardDetailModal({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("");
+  const [commentsLoading, setCommentsLoading] = useState(false);
 
   useEffect(() => {
     setTitle(card.title);
@@ -79,7 +80,8 @@ export default function CardDetailModal({
 
   useEffect(() => {
     if (open && card.id && !card.id.startsWith("temp-")) {
-      loadComments(card.id);
+      setCommentsLoading(true);
+      loadComments(card.id).finally(() => setCommentsLoading(false));
     }
   }, [open, card.id, loadComments]);
 
@@ -252,7 +254,20 @@ export default function CardDetailModal({
               Comments ({comments.length})
             </label>
             <div className="space-y-2 max-h-40 overflow-y-auto mb-2">
-              {comments.map((c) => (
+              {commentsLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <div
+                    className="w-5 h-5 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin"
+                    role="status"
+                    aria-label="Loading comments"
+                  />
+                </div>
+              ) : comments.length === 0 ? (
+                <p className="text-[11px] text-gray-400 dark:text-gray-500 py-2 text-center">
+                  No comments yet
+                </p>
+              ) : (
+              comments.map((c) => (
                 <div
                   key={c.id}
                   className="flex items-start gap-2 p-2 rounded-md bg-[#dce0d9] dark:bg-white/[0.03]"
@@ -285,7 +300,8 @@ export default function CardDetailModal({
                     </p>
                   </div>
                 </div>
-              ))}
+              ))
+              )}
             </div>
             <div className="flex items-center gap-2">
               <input
@@ -298,6 +314,7 @@ export default function CardDetailModal({
               <button
                 onClick={handleAddComment}
                 disabled={!commentText.trim()}
+                aria-label="Send comment"
                 className="p-1.5 rounded-md bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
               >
                 <Send className="w-3.5 h-3.5" />

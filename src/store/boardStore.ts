@@ -139,6 +139,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }
     } catch (error) {
       console.error("Failed to load board:", error);
+      get().pushError(errMessage(error, "Failed to load board"));
     } finally {
       set({ loading: false });
     }
@@ -363,6 +364,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }));
     } catch (err) {
       console.error("Failed to load comments:", err);
+      get().pushError(errMessage(err, "Failed to load comments"));
     }
   },
 
@@ -412,6 +414,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       set({ members: data.boardMembers || [] });
     } catch (err) {
       console.error("Failed to load members:", err);
+      get().pushError(errMessage(err, "Failed to load members"));
     }
   },
 
@@ -423,6 +426,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       get().loadMembers();
     } catch (err) {
       console.error("Failed to invite member:", err);
+      get().pushError(errMessage(err, "Failed to invite member"));
       throw err;
     }
   },
@@ -504,6 +508,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       });
     } catch (err) {
       console.error("Failed to load sprints:", err);
+      get().pushError(errMessage(err, "Failed to load sprints"));
     }
   },
 
@@ -620,6 +625,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     }
 
     set({
+      loading: true,
       columns: [],
       members: [],
       sprints: [],

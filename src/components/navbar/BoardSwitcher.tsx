@@ -53,8 +53,9 @@ export default function BoardSwitcher() {
     <div className="relative min-w-0">
       <button
         onClick={() => setOpen((v) => !v)}
+        aria-label="Switch board"
+        aria-expanded={open}
         className="flex items-center gap-1 sm:gap-1.5 px-1.5 sm:px-2 py-1 rounded-md hover:bg-[#dce0d9] dark:hover:bg-white/[0.05] transition-colors min-w-0"
-        title="Switch board"
       >
         <span className="text-[13px] sm:text-[14px] font-bold text-gray-900 dark:text-white tracking-tight truncate max-w-[140px] sm:max-w-[200px]">
           {currentBoardName}
@@ -71,7 +72,7 @@ export default function BoardSwitcher() {
             <h3 className="text-[13px] font-semibold text-gray-800 dark:text-gray-100">
               Boards ({boards.length})
             </h3>
-            <button onClick={() => setOpen(false)}>
+            <button onClick={() => setOpen(false)} aria-label="Close board switcher">
               <X className="w-4 h-4 text-gray-400" />
             </button>
           </div>
