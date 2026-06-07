@@ -452,6 +452,10 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
     const socket = getSocket();
 
+    socket.on("error", (data: { message?: string }) => {
+      if (data?.message) get().pushError(data.message);
+    });
+
     // Her baglantida (ilk bagalnti + reconnect'ler) board room'una katil.
     // Socket.io reconnect'te listener'lar korunur ama server tarafi room
     // uyelikleri kaybolur; bu nedenle yeni bir `connect` her tetiklendiginde

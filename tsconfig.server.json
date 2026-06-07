@@ -8,5 +8,11 @@
     "outDir": "./dist",
     "skipLibCheck": true
   },
-  "include": ["server.ts", "src/lib/rateLimit.ts"]
+  "include": [
+    "server.ts",
+    "src/lib/rateLimit.ts",
+    "src/lib/env.ts",
+    "src/lib/mongodb.ts",
+    "src/models/Board.ts"
+  ]
 }

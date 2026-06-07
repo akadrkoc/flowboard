@@ -1,10 +1,5 @@
 import mongoose from "mongoose";
-
-const MONGODB_URI = process.env.MONGODB_URI!;
-
-if (!MONGODB_URI) {
-  throw new Error("MONGODB_URI environment variable is not defined");
-}
+import { validateEnv } from "./env";
 
 // Cache the connection across hot reloads in development
 const cached = (global as Record<string, unknown>).__mongoose as
@@ -15,10 +10,13 @@ const mongoCache = cached ?? { conn: null, promise: null };
 (global as Record<string, unknown>).__mongoose = mongoCache;
 
 export async function connectDB() {
+  validateEnv();
+  const uri = process.env.MONGODB_URI!;
+
   if (mongoCache.conn) return mongoCache.conn;
 
   if (!mongoCache.promise) {
-    mongoCache.promise = mongoose.connect(MONGODB_URI);
+    mongoCache.promise = mongoose.connect(uri);
   }
 
   mongoCache.conn = await mongoCache.promise;

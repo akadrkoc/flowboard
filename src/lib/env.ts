@@ -1,0 +1,40 @@
+let validated = false;
+
+export function validateEnv(): void {
+  if (validated) return;
+  validated = true;
+
+  const required = ["MONGODB_URI", "NEXTAUTH_URL", "NEXTAUTH_SECRET"];
+  const missing = required.filter((key) => !process.env[key]?.trim());
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required environment variables: ${missing.join(", ")}`
+    );
+  }
+
+  const hasGithub =
+    process.env.GITHUB_CLIENT_ID?.trim() &&
+    process.env.GITHUB_CLIENT_SECRET?.trim();
+  const hasGoogle =
+    process.env.GOOGLE_CLIENT_ID?.trim() &&
+    process.env.GOOGLE_CLIENT_SECRET?.trim();
+  if (!hasGithub && !hasGoogle) {
+    throw new Error(
+      "At least one OAuth provider must be configured (GitHub or Google)"
+    );
+  }
+
+  if (process.env.PORT) {
+    const port = parseInt(process.env.PORT, 10);
+    if (Number.isNaN(port) || port < 1 || port > 65535) {
+      throw new Error("PORT must be a valid port number (1–65535)");
+    }
+  }
+
+  if (process.env.GRAPHQL_RATE_LIMIT) {
+    const limit = parseInt(process.env.GRAPHQL_RATE_LIMIT, 10);
+    if (Number.isNaN(limit) || limit < 1) {
+      throw new Error("GRAPHQL_RATE_LIMIT must be a positive integer");
+    }
+  }
+}
