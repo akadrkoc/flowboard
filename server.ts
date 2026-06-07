@@ -30,7 +30,9 @@ async function isBoardMember(
   if (!board) return false;
 
   const isOwner = board.ownerId.toString() === userId;
-  const isMember = board.memberIds.some((id) => id.toString() === userId);
+  const isMember = board.memberIds.some((id: { toString(): string }) =>
+    id.toString() === userId
+  );
   return isOwner || isMember;
 }
 
