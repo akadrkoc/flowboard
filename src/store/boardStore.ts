@@ -31,6 +31,8 @@ import {
   mergeColumnOnDelete,
 } from "./helpers";
 import { attachBoardSocketListeners } from "./socketListeners";
+import { VIEW_STORAGE_KEY } from "@/types/views";
+import type { BoardView } from "@/types/views";
 
 export type { BoardState } from "./boardTypes";
 
@@ -581,7 +583,16 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       }
       return { darkMode: newDarkMode };
     }),
-  setActiveView: (view) => set({ activeView: view }),
+  setActiveView: (view: BoardView) => {
+    set({ activeView: view });
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(VIEW_STORAGE_KEY, view);
+      } catch {
+        // Ignore storage errors.
+      }
+    }
+  },
 
   loadBoards: async () => {
     try {

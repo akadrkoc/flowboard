@@ -20,9 +20,11 @@ function isTextTarget(target: EventTarget | null): boolean {
 const SHORTCUTS: { keys: string; description: string }[] = [
   { keys: "/", description: "Focus search" },
   { keys: "c", description: "Add card to first column" },
-  { keys: "g then a", description: "Open Analytics view" },
-  { keys: "g then k", description: "Open Kanban view" },
-  { keys: "Esc", description: "Close task panel / modal" },
+  { keys: "g then k", description: "Board view" },
+  { keys: "g then l", description: "List view" },
+  { keys: "g then c", description: "Calendar view" },
+  { keys: "g then a", description: "Analytics view" },
+  { keys: "Esc", description: "Close task panel" },
   { keys: "?", description: "Show this help" },
 ];
 
@@ -83,11 +85,32 @@ export default function KeyboardShortcuts() {
           resetGPending();
           return;
         }
+        case "k": {
+          if (gPending) {
+            e.preventDefault();
+            setActiveView("kanban");
+            resetGPending();
+          }
+          return;
+        }
+        case "l": {
+          if (gPending) {
+            e.preventDefault();
+            setActiveView("list");
+            resetGPending();
+          }
+          return;
+        }
         case "c": {
+          if (gPending) {
+            e.preventDefault();
+            setActiveView("calendar");
+            resetGPending();
+            return;
+          }
           const first = columns[0];
           if (first) {
             e.preventDefault();
-            // Kanban gorunumunde degilsek oraya gec, sonra formu ac.
             if (activeView !== "kanban") setActiveView("kanban");
             requestAddCard(first.id);
           }
@@ -101,7 +124,6 @@ export default function KeyboardShortcuts() {
           return;
         }
         case "g": {
-          // "g a" veya "g k" icin bir sonraki tusu bekle.
           gPending = true;
           gTimer = setTimeout(resetGPending, 1200);
           return;
@@ -110,14 +132,6 @@ export default function KeyboardShortcuts() {
           if (gPending) {
             e.preventDefault();
             setActiveView("analytics");
-            resetGPending();
-          }
-          return;
-        }
-        case "k": {
-          if (gPending) {
-            e.preventDefault();
-            setActiveView("kanban");
             resetGPending();
           }
           return;

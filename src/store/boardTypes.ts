@@ -1,4 +1,5 @@
 import type { Card, Column } from "@/types/board";
+import type { BoardView } from "@/types/views";
 
 export interface BoardComment {
   id: string;
@@ -33,7 +34,7 @@ export interface BoardState {
   columns: Column[];
   loading: boolean;
   darkMode: boolean;
-  activeView: "kanban" | "analytics";
+  activeView: BoardView;
   searchQuery: string;
   filterPriority: string | null;
   filterLabel: string | null;
@@ -50,7 +51,7 @@ export interface BoardState {
   updateCard: (cardId: string, updates: Partial<Card>) => void;
   deleteCard: (cardId: string) => void;
   toggleDarkMode: () => void;
-  setActiveView: (view: "kanban" | "analytics") => void;
+  setActiveView: (view: BoardView) => void;
   setSearchQuery: (query: string) => void;
   setFilterPriority: (priority: string | null) => void;
   setFilterLabel: (label: string | null) => void;
