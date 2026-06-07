@@ -4,13 +4,13 @@ import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
   Trash2,
-  Send,
-  MessageSquare,
   X,
   Calendar,
   Flag,
   CircleDot,
 } from "lucide-react";
+import SubtaskList from "@/components/task/SubtaskList";
+import ActivityFeed from "@/components/task/ActivityFeed";
 import { useSession } from "next-auth/react";
 import { useBoardStore } from "@/store/boardStore";
 import type { Card as CardType, Priority } from "@/types/board";
@@ -40,10 +40,12 @@ export default function TaskDetailPanel({
   const updateCard = useBoardStore((s) => s.updateCard);
   const deleteCard = useBoardStore((s) => s.deleteCard);
   const moveCard = useBoardStore((s) => s.moveCard);
-  const rawComments = useBoardStore((s) => s.commentsByCard[taskId]);
-  const comments = useMemo(() => rawComments ?? [], [rawComments]);
-  const loadComments = useBoardStore((s) => s.loadComments);
-  const addComment = useBoardStore((s) => s.addComment);
+  const rawActivity = useBoardStore((s) => s.activityFeedByCard[taskId]);
+  const activityItems = useMemo(() => rawActivity ?? [], [rawActivity]);
+  const rawSubtasks = useBoardStore((s) => s.subtasksByCard[taskId]);
+  const subtasks = useMemo(() => rawSubtasks ?? [], [rawSubtasks]);
+  const loadActivityFeed = useBoardStore((s) => s.loadActivityFeed);
+  const loadSubtasks = useBoardStore((s) => s.loadSubtasks);
   const members = useBoardStore((s) => s.members);
   const loadMembers = useBoardStore((s) => s.loadMembers);
   const { data: session } = useSession();
@@ -69,15 +71,21 @@ export default function TaskDetailPanel({
   const [storyPoints, setStoryPoints] = useState(1);
   const [dueDate, setDueDate] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [commentText, setCommentText] = useState("");
   const [assigneeId, setAssigneeId] = useState("");
-  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [feedLoading, setFeedLoading] = useState(false);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">(
+    "idle"
+  );
 
   useEffect(() => {
+    if (columns.length === 0) return;
     if (!card) {
       router.replace(`/board/${boardId}`);
-      return;
     }
+  }, [columns.length, card, boardId, router]);
+
+  useEffect(() => {
+    if (!card) return;
     setTitle(card.title);
     setDescription(card.description || "");
     setLabels(card.labels);
@@ -86,8 +94,17 @@ export default function TaskDetailPanel({
     setDueDate(card.dueDate || "");
     setConfirmDelete(false);
     setNewLabelDraft("");
-    setAssigneeId(isUnassigned(card.assigneeInitials) ? "unassigned" : "");
-  }, [card, boardId, router]);
+    setAssigneeId(
+      card.assigneeId
+        ? card.assigneeId
+        : isUnassigned(card.assigneeInitials)
+          ? "unassigned"
+          : ""
+    );
+    setSaveState("idle");
+    // Sync form only when switching tasks, not on every card field update.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- card?.id is the task identity
+  }, [taskId, card?.id]);
 
   useEffect(() => {
     if (members.length === 0) loadMembers();
@@ -95,10 +112,12 @@ export default function TaskDetailPanel({
 
   useEffect(() => {
     if (taskId && !taskId.startsWith("temp-")) {
-      setCommentsLoading(true);
-      loadComments(taskId).finally(() => setCommentsLoading(false));
+      setFeedLoading(true);
+      Promise.all([loadActivityFeed(taskId), loadSubtasks(taskId)]).finally(
+        () => setFeedLoading(false)
+      );
     }
-  }, [taskId, loadComments]);
+  }, [taskId, loadActivityFeed, loadSubtasks]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -137,28 +156,41 @@ export default function TaskDetailPanel({
   if (!card) return null;
 
   const buildAssigneePatch = (): Partial<CardType> => {
-    const patch: Partial<CardType> = {};
     if (assigneeId === "unassigned") {
-      patch.assigneeInitials = "";
-      patch.assigneeColor = UNASSIGNED_COLOR;
-    } else if (assigneeId && selectedOption && !selectedOption.unassigned) {
-      patch.assigneeInitials = selectedOption.initials;
-      patch.assigneeColor = selectedOption.color;
+      return {
+        assigneeId: null,
+        assigneeInitials: "",
+        assigneeColor: UNASSIGNED_COLOR,
+      };
     }
-    return patch;
+    if (assigneeId && selectedOption && !selectedOption.unassigned) {
+      return {
+        assigneeId,
+        assigneeInitials: selectedOption.initials,
+        assigneeColor: selectedOption.color,
+      };
+    }
+    return {};
   };
 
-  const handleSave = () => {
-    if (!title.trim()) return;
-    updateCard(card.id, {
-      title: title.trim(),
-      description: description.trim(),
-      labels: labels.length ? labels : ["Frontend"],
-      priority,
-      storyPoints,
-      dueDate,
-      ...buildAssigneePatch(),
-    });
+  const handleSave = async () => {
+    if (!title.trim() || saveState === "saving") return;
+    setSaveState("saving");
+    try {
+      await updateCard(card.id, {
+        title: title.trim(),
+        description: description.trim(),
+        labels: labels.length ? labels : ["Frontend"],
+        priority,
+        storyPoints,
+        dueDate,
+        ...buildAssigneePatch(),
+      });
+      setSaveState("saved");
+      window.setTimeout(() => setSaveState("idle"), 2000);
+    } catch {
+      setSaveState("idle");
+    }
   };
 
   const handleDelete = () => {
@@ -170,17 +202,12 @@ export default function TaskDetailPanel({
     closeTask();
   };
 
-  const handleAddComment = () => {
-    if (!commentText.trim()) return;
-    addComment(card.id, commentText.trim());
-    setCommentText("");
-  };
-
   const handleStatusChange = (columnId: string) => {
     if (columnId === currentColumn?.id) return;
     const targetCol = columns.find((c) => c.id === columnId);
     if (!targetCol) return;
     moveCard(card.id, columnId, targetCol.cards.length);
+    setTimeout(() => loadActivityFeed(card.id), 400);
   };
 
   const statusStyle = getColumnStatusStyle(
@@ -267,18 +294,25 @@ export default function TaskDetailPanel({
               selectedOption={selectedOption}
               onSelect={(id) => {
                 setAssigneeId(id);
-                const patch: Partial<CardType> = {};
                 if (id === "unassigned") {
-                  patch.assigneeInitials = "";
-                  patch.assigneeColor = UNASSIGNED_COLOR;
+                  updateCard(card.id, {
+                    assigneeId: null,
+                    assigneeInitials: "",
+                    assigneeColor: UNASSIGNED_COLOR,
+                  });
                 } else {
                   const opt = assigneeOptions.find((o) => o.id === id);
-                  if (opt && !opt.unassigned) {
-                    patch.assigneeInitials = opt.initials;
-                    patch.assigneeColor = opt.color;
-                  }
+                  updateCard(card.id, {
+                    assigneeId: id,
+                    ...(opt && !opt.unassigned
+                      ? {
+                          assigneeInitials: opt.initials,
+                          assigneeColor: opt.color,
+                        }
+                      : {}),
+                  });
                 }
-                if (Object.keys(patch).length) updateCard(card.id, patch);
+                setTimeout(() => loadActivityFeed(card.id), 400);
               }}
             />
           </div>
@@ -340,88 +374,27 @@ export default function TaskDetailPanel({
             />
           </div>
 
-          <div>
-            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-              <MessageSquare className="w-3 h-3" />
-              Activity ({comments.length})
-            </label>
-            <div className="space-y-2 max-h-48 overflow-y-auto mb-2">
-              {commentsLoading ? (
-                <div className="flex items-center justify-center py-4">
-                  <div
-                    className="w-5 h-5 rounded-full border-2 border-violet-500/30 border-t-violet-500 animate-spin"
-                    role="status"
-                    aria-label="Loading comments"
-                  />
-                </div>
-              ) : comments.length === 0 ? (
-                <p className="text-[11px] text-gray-400 dark:text-gray-500 py-2 text-center">
-                  No comments yet
-                </p>
-              ) : (
-                comments.map((c) => (
-                  <div
-                    key={c.id}
-                    className="flex items-start gap-2 p-2 rounded-md bg-[#dce0d9] dark:bg-white/[0.03]"
-                  >
-                    {c.authorImage ? (
-                      <img
-                        src={c.authorImage}
-                        alt={c.authorName}
-                        className="w-5 h-5 rounded-full mt-0.5"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center mt-0.5">
-                        <span className="text-[8px] font-bold text-white">
-                          {c.authorName?.[0]?.toUpperCase() || "?"}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
-                          {c.authorName}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                          {new Date(c.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      <p className="text-[12px] text-gray-600 dark:text-gray-400 mt-0.5">
-                        {c.text}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                value={commentText}
-                onChange={(e) => setCommentText(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAddComment()}
-                placeholder="Write a comment..."
-                className="flex-1 rounded-md border border-[#ead7c3] dark:border-white/[0.08] bg-[#dce0d9] dark:bg-white/[0.03] px-3 py-1.5 text-[12px] text-gray-800 dark:text-gray-100 outline-none focus:border-violet-400 dark:focus:border-violet-500 transition-colors"
-              />
-              <button
-                onClick={handleAddComment}
-                disabled={!commentText.trim()}
-                aria-label="Send comment"
-                className="p-1.5 rounded-md bg-violet-600 hover:bg-violet-500 disabled:opacity-40 disabled:cursor-not-allowed text-white transition-colors"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
+          <SubtaskList cardId={card.id} subtasks={subtasks} />
+
+          <ActivityFeed
+            cardId={card.id}
+            items={activityItems}
+            loading={feedLoading}
+          />
         </div>
       </div>
 
       <div className="flex items-center gap-2 p-4 border-t border-[#ead7c3] dark:border-white/[0.06] flex-shrink-0">
         <button
           onClick={handleSave}
-          className="flex-1 py-2 rounded-md bg-violet-600 hover:bg-violet-500 text-[13px] font-medium text-white transition-colors"
+          disabled={!title.trim() || saveState === "saving"}
+          className="flex-1 py-2 rounded-md bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-[13px] font-medium text-white transition-colors"
         >
-          Save
+          {saveState === "saving"
+            ? "Saving..."
+            : saveState === "saved"
+              ? "Saved!"
+              : "Save"}
         </button>
         <button
           onClick={handleDelete}

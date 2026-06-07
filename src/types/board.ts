@@ -8,6 +8,7 @@ export type Card = {
   priority: Priority;
   dueDate: string;
   storyPoints: number;
+  assigneeId?: string | null;
   assigneeInitials: string;
   assigneeColor: string;
   columnId: string;

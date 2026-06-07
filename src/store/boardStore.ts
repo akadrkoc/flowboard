@@ -6,22 +6,27 @@ import type { BoardState } from "./boardTypes";
 import {
   ADD_COLUMN_MUTATION,
   ADD_COMMENT_MUTATION,
+  ADD_SUBTASK_MUTATION,
   COMPLETE_SPRINT_MUTATION,
   CREATE_BOARD_MUTATION,
   CREATE_CARD_MUTATION,
   CREATE_SPRINT_MUTATION,
   DELETE_CARD_MUTATION,
   DELETE_COLUMN_MUTATION,
+  DELETE_SUBTASK_MUTATION,
+  GET_ACTIVITY_FEED_QUERY,
   GET_BOARD_MEMBERS_QUERY,
   GET_BOARD_QUERY,
   GET_BOARDS_LIST_QUERY,
   GET_COMMENTS_QUERY,
+  GET_SUBTASKS_QUERY,
   GET_SPRINTS_QUERY,
   INVITE_MEMBER_MUTATION,
   MOVE_CARD_MUTATION,
   REMOVE_MEMBER_MUTATION,
   RENAME_COLUMN_MUTATION,
   RESTORE_CARD_MUTATION,
+  TOGGLE_SUBTASK_MUTATION,
   UPDATE_CARD_MUTATION,
 } from "./queries";
 import {
@@ -49,6 +54,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   filterAssignee: null,
   lastDeletedCard: null,
   commentsByCard: {},
+  activityFeedByCard: {},
+  subtasksByCard: {},
   members: [],
   activeSprint: null,
   sprints: [],
@@ -206,6 +213,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         priority: cardData.priority,
         dueDate: cardData.dueDate || null,
         storyPoints: cardData.storyPoints,
+        assigneeId: cardData.assigneeId ?? null,
         assigneeInitials: cardData.assigneeInitials,
         assigneeColor: cardData.assigneeColor,
       },
@@ -258,7 +266,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       })),
     }));
 
-    if (cardId.startsWith("temp-")) return;
+    if (cardId.startsWith("temp-")) return Promise.resolve();
 
     const allowedKeys = [
       "title",
@@ -267,6 +275,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       "priority",
       "dueDate",
       "storyPoints",
+      "assigneeId",
       "assigneeInitials",
       "assigneeColor",
     ] as const;
@@ -276,12 +285,13 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       if (value !== undefined) input[key] = value;
     }
 
-    if (Object.keys(input).length === 0) return;
+    if (Object.keys(input).length === 0) return Promise.resolve();
 
-    graphqlFetch(UPDATE_CARD_MUTATION, { cardId, input }).catch(
+    const mutation = graphqlFetch(UPDATE_CARD_MUTATION, { cardId, input }).catch(
       (err: unknown) => {
         console.error("Failed to update card:", err);
         get().pushError(errMessage(err, "Failed to update card"));
+        throw err;
       }
     );
 
@@ -289,6 +299,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
     if (boardId) {
       getSocket().emit("card-updated", { boardId, cardId, updates: input });
     }
+
+    return mutation.then(() => undefined);
   },
 
   deleteCard: (cardId) => {
@@ -384,6 +396,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
             },
           };
         });
+        get().loadActivityFeed(cardId);
         const { boardId } = get();
         if (boardId) {
           getSocket().emit("comment-added", { boardId, cardId, comment });
@@ -393,6 +406,97 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         console.error("Failed to add comment:", err);
         get().pushError(errMessage(err, "Failed to add comment"));
       });
+  },
+
+  loadActivityFeed: async (cardId) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await graphqlFetch(GET_ACTIVITY_FEED_QUERY, { cardId });
+      set((state) => ({
+        activityFeedByCard: {
+          ...state.activityFeedByCard,
+          [cardId]: data.activityFeed || [],
+        },
+      }));
+    } catch (err) {
+      console.error("Failed to load activity feed:", err);
+      get().pushError(errMessage(err, "Failed to load activity"));
+    }
+  },
+
+  loadSubtasks: async (cardId) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await graphqlFetch(GET_SUBTASKS_QUERY, { cardId });
+      set((state) => ({
+        subtasksByCard: {
+          ...state.subtasksByCard,
+          [cardId]: data.subtasks || [],
+        },
+      }));
+    } catch (err) {
+      console.error("Failed to load subtasks:", err);
+      get().pushError(errMessage(err, "Failed to load subtasks"));
+    }
+  },
+
+  addSubtask: async (cardId, title) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await graphqlFetch(ADD_SUBTASK_MUTATION, {
+        cardId,
+        title,
+      });
+      const subtask = data.addSubtask;
+      set((state) => ({
+        subtasksByCard: {
+          ...state.subtasksByCard,
+          [cardId]: [...(state.subtasksByCard[cardId] ?? []), subtask],
+        },
+      }));
+      get().loadActivityFeed(cardId);
+    } catch (err) {
+      console.error("Failed to add subtask:", err);
+      get().pushError(errMessage(err, "Failed to add subtask"));
+      throw err;
+    }
+  },
+
+  toggleSubtask: async (subtaskId, cardId) => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await graphqlFetch(TOGGLE_SUBTASK_MUTATION, { subtaskId });
+      const updated = data.toggleSubtask;
+      set((state) => ({
+        subtasksByCard: {
+          ...state.subtasksByCard,
+          [cardId]: (state.subtasksByCard[cardId] ?? []).map((s) =>
+            s.id === subtaskId ? { ...s, completed: updated.completed } : s
+          ),
+        },
+      }));
+      get().loadActivityFeed(cardId);
+    } catch (err) {
+      console.error("Failed to toggle subtask:", err);
+      get().pushError(errMessage(err, "Failed to update subtask"));
+    }
+  },
+
+  deleteSubtask: async (subtaskId, cardId) => {
+    try {
+      await graphqlFetch(DELETE_SUBTASK_MUTATION, { subtaskId });
+      set((state) => ({
+        subtasksByCard: {
+          ...state.subtasksByCard,
+          [cardId]: (state.subtasksByCard[cardId] ?? []).filter(
+            (s) => s.id !== subtaskId
+          ),
+        },
+      }));
+    } catch (err) {
+      console.error("Failed to delete subtask:", err);
+      get().pushError(errMessage(err, "Failed to delete subtask"));
+    }
   },
 
   setSearchQuery: (query) => set({ searchQuery: query }),
@@ -642,6 +746,8 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       sprints: [],
       activeSprint: null,
       commentsByCard: {},
+      activityFeedByCard: {},
+      subtasksByCard: {},
       lastDeletedCard: null,
       searchQuery: "",
       filterPriority: null,

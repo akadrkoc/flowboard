@@ -39,8 +39,11 @@ interface KanbanCardProps {
   isDraggingOverlay?: boolean;
 }
 
+const DRAG_CLICK_THRESHOLD = 5;
+
 export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps) {
   const didDrag = useRef(false);
+  const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const { openTask } = useBoardNavigation();
 
   const selectMode = useBoardStore((s) => s.selectMode);
@@ -95,10 +98,22 @@ export default function KanbanCard({ card, isDraggingOverlay }: KanbanCardProps)
       aria-label={`Open card: ${card.title}`}
       onPointerDown={(e) => {
         didDrag.current = false;
+        pointerStart.current = { x: e.clientX, y: e.clientY };
         listeners?.onPointerDown?.(e);
       }}
-      onPointerMove={() => {
-        didDrag.current = true;
+      onPointerMove={(e) => {
+        if (!pointerStart.current) return;
+        const dx = e.clientX - pointerStart.current.x;
+        const dy = e.clientY - pointerStart.current.y;
+        if (Math.hypot(dx, dy) >= DRAG_CLICK_THRESHOLD) {
+          didDrag.current = true;
+        }
+      }}
+      onPointerUp={() => {
+        pointerStart.current = null;
+      }}
+      onPointerCancel={() => {
+        pointerStart.current = null;
       }}
       onClick={openCard}
       onKeyDown={handleKeyDown}

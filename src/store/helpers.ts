@@ -16,6 +16,7 @@ export function mapApiCard(card: any): Card {
     priority: card.priority,
     dueDate: card.dueDate || "",
     storyPoints: card.storyPoints,
+    assigneeId: card.assigneeId ?? null,
     assigneeInitials: card.assigneeInitials || "",
     assigneeColor: card.assigneeColor || "bg-gray-500",
     columnId: card.columnId,

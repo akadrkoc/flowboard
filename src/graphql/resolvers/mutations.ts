@@ -4,6 +4,7 @@ import { Board } from "@/models/Board";
 import { Column } from "@/models/Column";
 import { Card } from "@/models/Card";
 import { Comment } from "@/models/Comment";
+import { Subtask } from "@/models/Subtask";
 import { User } from "@/models/User";
 import { Sprint } from "@/models/Sprint";
 import type { GraphQLContext } from "@/app/api/graphql/route";
@@ -16,6 +17,8 @@ import {
   validateEmail,
   validateDateRange,
 } from "@/graphql/auth";
+import { applyAssigneeInput } from "@/graphql/assigneeInput";
+import { getActorFromUserId, logActivity } from "@/graphql/activityLog";
 
 export const mutationResolvers = {
   createBoard: async (
@@ -57,7 +60,7 @@ export const mutationResolvers = {
     }: { columnId: string; input: Record<string, unknown> },
     ctx: GraphQLContext
   ) => {
-    requireAuth(ctx);
+    const userId = requireAuth(ctx);
     await connectDB();
 
     const column = await Column.findById(columnId);
@@ -67,7 +70,11 @@ export const mutationResolvers = {
       });
 
     await requireBoardMember(ctx, column.boardId.toString());
-    const sanitized = sanitizeCardInput(input);
+    let sanitized = sanitizeCardInput(input);
+    sanitized = await applyAssigneeInput(
+      sanitized,
+      column.boardId.toString()
+    );
 
     const lastCard = await Card.findOne({ columnId }).sort({ order: -1 }).lean();
     const nextOrder = lastCard ? (lastCard as { order: number }).order + 1 : 0;
@@ -77,6 +84,16 @@ export const mutationResolvers = {
       columnId,
       boardId: column.boardId,
       order: nextOrder,
+    });
+
+    const actor = await getActorFromUserId(userId);
+    await logActivity({
+      cardId: card._id.toString(),
+      type: "created",
+      text: "Created this task",
+      actorId: userId,
+      actorName: actor.actorName,
+      actorImage: actor.actorImage,
     });
 
     return card;
@@ -91,7 +108,7 @@ export const mutationResolvers = {
     }: { cardId: string; toColumnId: string; newIndex: number },
     ctx: GraphQLContext
   ) => {
-    requireAuth(ctx);
+    const userId = requireAuth(ctx);
     await connectDB();
 
     const card = await Card.findById(cardId);
@@ -166,6 +183,19 @@ export const mutationResolvers = {
     card.order = newIndex;
     await card.save();
 
+    if (isMovingColumns) {
+      const actor = await getActorFromUserId(userId);
+      const toName = (toColumn as { name: string }).name;
+      await logActivity({
+        cardId,
+        type: "status_changed",
+        text: `Moved to ${toName}`,
+        actorId: userId,
+        actorName: actor.actorName,
+        actorImage: actor.actorImage,
+      });
+    }
+
     return card;
   },
 
@@ -177,7 +207,7 @@ export const mutationResolvers = {
     }: { cardId: string; input: Record<string, unknown> },
     ctx: GraphQLContext
   ) => {
-    requireAuth(ctx);
+    const userId = requireAuth(ctx);
     await connectDB();
 
     const existingCard = await Card.findById(cardId);
@@ -187,7 +217,44 @@ export const mutationResolvers = {
       });
 
     await requireBoardMember(ctx, existingCard.boardId.toString());
-    const sanitized = sanitizeCardInput(input);
+    let sanitized = sanitizeCardInput(input);
+    const boardId = existingCard.boardId.toString();
+
+    if ("assigneeId" in sanitized) {
+      const oldAssignee = existingCard.assigneeId?.toString() ?? null;
+      sanitized = await applyAssigneeInput(sanitized, boardId);
+      const newAssignee =
+        sanitized.assigneeId === null || sanitized.assigneeId === undefined
+          ? null
+          : String(sanitized.assigneeId);
+
+      if (oldAssignee !== newAssignee) {
+        const actor = await getActorFromUserId(userId);
+        if (!newAssignee) {
+          await logActivity({
+            cardId,
+            type: "assignee_changed",
+            text: "Unassigned this task",
+            actorId: userId,
+            actorName: actor.actorName,
+            actorImage: actor.actorImage,
+          });
+        } else {
+          const assignee = await User.findById(newAssignee).lean();
+          const name = assignee
+            ? (assignee as { name: string }).name
+            : "member";
+          await logActivity({
+            cardId,
+            type: "assignee_changed",
+            text: `Assigned to ${name}`,
+            actorId: userId,
+            actorName: actor.actorName,
+            actorImage: actor.actorImage,
+          });
+        }
+      }
+    }
 
     const card = await Card.findByIdAndUpdate(cardId, sanitized, {
       new: true,
@@ -537,5 +604,134 @@ export const mutationResolvers = {
     });
 
     return comment;
+  },
+
+  addSubtask: async (
+    _: unknown,
+    { cardId, title }: { cardId: string; title: string },
+    ctx: GraphQLContext
+  ) => {
+    const userId = requireAuth(ctx);
+    validateName(title, "Subtask title");
+    await connectDB();
+
+    const card = await Card.findById(cardId);
+    if (!card)
+      throw new GraphQLError("Card not found", {
+        extensions: { code: "NOT_FOUND" },
+      });
+    await requireBoardMember(ctx, card.boardId.toString());
+
+    const last = await Subtask.findOne({ cardId }).sort({ order: -1 }).lean();
+    const nextOrder = last ? (last as { order: number }).order + 1 : 0;
+
+    const subtask = await Subtask.create({
+      cardId,
+      title: title.trim(),
+      order: nextOrder,
+    });
+
+    const actor = await getActorFromUserId(userId);
+    await logActivity({
+      cardId,
+      type: "subtask_added",
+      text: `Added subtask "${title.trim()}"`,
+      actorId: userId,
+      actorName: actor.actorName,
+      actorImage: actor.actorImage,
+    });
+
+    return subtask;
+  },
+
+  toggleSubtask: async (
+    _: unknown,
+    { subtaskId }: { subtaskId: string },
+    ctx: GraphQLContext
+  ) => {
+    const userId = requireAuth(ctx);
+    await connectDB();
+
+    const subtask = await Subtask.findById(subtaskId);
+    if (!subtask)
+      throw new GraphQLError("Subtask not found", {
+        extensions: { code: "NOT_FOUND" },
+      });
+
+    const card = await Card.findById(subtask.cardId);
+    if (!card)
+      throw new GraphQLError("Card not found", {
+        extensions: { code: "NOT_FOUND" },
+      });
+    await requireBoardMember(ctx, card.boardId.toString());
+
+    subtask.completed = !subtask.completed;
+    await subtask.save();
+
+    const actor = await getActorFromUserId(userId);
+    await logActivity({
+      cardId: subtask.cardId.toString(),
+      type: "subtask_completed",
+      text: subtask.completed
+        ? `Completed "${subtask.title}"`
+        : `Reopened "${subtask.title}"`,
+      actorId: userId,
+      actorName: actor.actorName,
+      actorImage: actor.actorImage,
+    });
+
+    return subtask;
+  },
+
+  updateSubtask: async (
+    _: unknown,
+    { subtaskId, title }: { subtaskId: string; title: string },
+    ctx: GraphQLContext
+  ) => {
+    requireAuth(ctx);
+    validateName(title, "Subtask title");
+    await connectDB();
+
+    const subtask = await Subtask.findById(subtaskId);
+    if (!subtask)
+      throw new GraphQLError("Subtask not found", {
+        extensions: { code: "NOT_FOUND" },
+      });
+
+    const card = await Card.findById(subtask.cardId);
+    if (!card)
+      throw new GraphQLError("Card not found", {
+        extensions: { code: "NOT_FOUND" },
+      });
+    await requireBoardMember(ctx, card.boardId.toString());
+
+    subtask.title = title.trim();
+    await subtask.save();
+    return subtask;
+  },
+
+  deleteSubtask: async (
+    _: unknown,
+    { subtaskId }: { subtaskId: string },
+    ctx: GraphQLContext
+  ) => {
+    requireAuth(ctx);
+    await connectDB();
+
+    const subtask = await Subtask.findById(subtaskId);
+    if (!subtask)
+      throw new GraphQLError("Subtask not found", {
+        extensions: { code: "NOT_FOUND" },
+      });
+
+    const card = await Card.findById(subtask.cardId);
+    if (!card)
+      throw new GraphQLError("Card not found", {
+        extensions: { code: "NOT_FOUND" },
+      });
+    await requireBoardMember(ctx, card.boardId.toString());
+
+    await Subtask.findByIdAndDelete(subtaskId);
+    return true;
   },
 };

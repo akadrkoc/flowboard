@@ -95,6 +95,8 @@ export default function AddCardForm({ columnId }: AddCardFormProps) {
       priority,
       dueDate: dueDate || "",
       storyPoints,
+      assigneeId:
+        assigneeId && assigneeId !== "unassigned" ? assigneeId : null,
       assigneeInitials,
       assigneeColor,
     });

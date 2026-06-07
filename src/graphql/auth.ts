@@ -74,6 +74,7 @@ const CARD_INPUT_ALLOWED_FIELDS = [
   "priority",
   "dueDate",
   "storyPoints",
+  "assigneeId",
   "assigneeInitials",
   "assigneeColor",
 ] as const;
@@ -155,6 +156,15 @@ export function sanitizeCardInput(input: Record<string, unknown>): Record<string
           extensions: { code: "BAD_USER_INPUT" },
         });
       }
+    }
+  }
+
+  // assigneeId: nullable ID string
+  if (sanitized.assigneeId !== undefined && sanitized.assigneeId !== null) {
+    if (typeof sanitized.assigneeId !== "string") {
+      throw new GraphQLError("assigneeId must be a string or null", {
+        extensions: { code: "BAD_USER_INPUT" },
+      });
     }
   }
 
