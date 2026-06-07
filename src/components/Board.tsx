@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -18,63 +18,19 @@ import {
 } from "@dnd-kit/core";
 import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { useBoardStore } from "@/store/boardStore";
+import { useFilteredColumns } from "@/hooks/useFilteredColumns";
 import KanbanColumn from "./KanbanColumn";
 import KanbanCard from "./KanbanCard";
+import FilterEmptyBanner from "./views/FilterEmptyBanner";
 import type { Card } from "@/types/board";
-import { SearchX } from "lucide-react";
 
 export default function Board() {
   const columns = useBoardStore((s) => s.columns);
   const moveCard = useBoardStore((s) => s.moveCard);
   const moveCardLocal = useBoardStore((s) => s.moveCardLocal);
-  const searchQuery = useBoardStore((s) => s.searchQuery);
-  const filterPriority = useBoardStore((s) => s.filterPriority);
-  const filterLabel = useBoardStore((s) => s.filterLabel);
-  const filterAssignee = useBoardStore((s) => s.filterAssignee);
+  const { filteredColumns, hasActiveFilters, totalFilteredCards } =
+    useFilteredColumns();
   const [activeCard, setActiveCard] = useState<Card | null>(null);
-
-  const filteredColumns = useMemo(() => {
-    if (!searchQuery && !filterPriority && !filterLabel && !filterAssignee) {
-      return columns;
-    }
-    const q = searchQuery.toLowerCase();
-    return columns.map((col) => ({
-      ...col,
-      cards: col.cards.filter((card) => {
-        if (
-          q &&
-          !card.title.toLowerCase().includes(q) &&
-          !(card.description || "").toLowerCase().includes(q)
-        ) {
-          return false;
-        }
-        if (filterPriority && card.priority !== filterPriority) return false;
-        if (filterLabel && !card.labels.includes(filterLabel)) return false;
-        if (filterAssignee) {
-          // "unassigned" ozel degeri: assignee'si olmayan kartlari goster.
-          // Diger degerler: assignee'nin initials'i (FilterBar bu sekilde
-          // secenek uretiyor).
-          if (filterAssignee === "unassigned") {
-            if (card.assigneeInitials) return false;
-          } else if (card.assigneeInitials !== filterAssignee) {
-            return false;
-          }
-        }
-        return true;
-      }),
-    }));
-  }, [columns, searchQuery, filterPriority, filterLabel, filterAssignee]);
-
-  const hasActiveFilters = !!(
-    searchQuery ||
-    filterPriority ||
-    filterLabel ||
-    filterAssignee
-  );
-  const totalFilteredCards = filteredColumns.reduce(
-    (sum, col) => sum + col.cards.length,
-    0
-  );
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -85,18 +41,11 @@ export default function Board() {
     })
   );
 
-  // Custom collision detection: önce pointer'ın içinde olduğu alanı kontrol et,
-  // sonra en yakın merkeze bak. Bu boş kolonlara da drop etmeyi sağlar.
   const collisionDetection: CollisionDetection = useCallback((args) => {
-    // Önce pointer'ın doğrudan üzerinde olduğu elemanları bul
     const pointerCollisions = pointerWithin(args);
     if (pointerCollisions.length > 0) return pointerCollisions;
-
-    // Pointer hiçbir şeyin üzerinde değilse rect intersection dene
     const rectCollisions = rectIntersection(args);
     if (rectCollisions.length > 0) return rectCollisions;
-
-    // Son çare: en yakın merkez
     return closestCenter(args);
   }, []);
 
@@ -126,13 +75,11 @@ export default function Board() {
       const overId = over.id as string;
 
       const activeCol = findColumnByCardId(activeId);
-      // Over might be a column or a card
       const overCol =
         columns.find((c) => c.id === overId) || findColumnByCardId(overId);
 
       if (!activeCol || !overCol || activeCol.id === overCol.id) return;
 
-      // Card is moving to a different column
       const overCardIdx = overCol.cards.findIndex((c) => c.id === overId);
       const newIndex = overCardIdx >= 0 ? overCardIdx : overCol.cards.length;
 
@@ -149,12 +96,6 @@ export default function Board() {
       if (!over) return;
 
       const activeId = active.id as string;
-
-      // Drag bitince kartin son lokasyonunu bul ve onu server'a iletelim.
-      // handleDragOver zaten client state'i optimistic olarak guncelledigi
-      // icin current position guvenilir kaynaktir. Bu yaklasim, kullanici
-      // yeni kolonun BOS alanina biraktiginda da (over.id = column.id,
-      // overIdx = -1) moveCard'in cagrilmasini garanti eder.
       const currentCol = findColumnByCardId(activeId);
       if (!currentCol) return;
 
@@ -175,18 +116,20 @@ export default function Board() {
       onDragEnd={handleDragEnd}
     >
       <div className="flex-1 overflow-y-auto md:overflow-x-auto">
-        {hasActiveFilters && totalFilteredCards === 0 && (
-          <div className="mx-3 sm:mx-4 md:mx-6 mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-300 text-[12px]">
-            <SearchX className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>No cards match the current filters.</span>
-          </div>
-        )}
+        <FilterEmptyBanner
+          show={hasActiveFilters && totalFilteredCards === 0}
+        />
         <div
           className="flex flex-col md:flex-row gap-3 md:gap-5 p-3 sm:p-4 md:p-6 pb-4"
           style={{ justifyContent: "safe center" }}
         >
           {filteredColumns.map((column, index) => (
-            <KanbanColumn key={column.id} column={column} index={index} isLast={index === filteredColumns.length - 1} />
+            <KanbanColumn
+              key={column.id}
+              column={column}
+              index={index}
+              isLast={index === filteredColumns.length - 1}
+            />
           ))}
         </div>
       </div>

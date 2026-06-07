@@ -2,8 +2,11 @@
 
 import { useEffect, useState, useRef } from "react";
 import { useBoardStore } from "@/store/boardStore";
+import { isBoardView, VIEW_STORAGE_KEY } from "@/types/views";
 import AppShell from "@/components/shell/AppShell";
 import Board from "@/components/Board";
+import ListView from "@/components/views/ListView";
+import CalendarView from "@/components/views/CalendarView";
 import FilterBar from "@/components/FilterBar";
 import StatsBar from "@/components/StatsBar";
 import AnalyticsDashboard from "@/components/analytics/AnalyticsDashboard";
@@ -17,6 +20,7 @@ interface BoardWorkspaceProps {
 export default function BoardWorkspace({ boardId, taskId }: BoardWorkspaceProps) {
   const switchBoard = useBoardStore((s) => s.switchBoard);
   const initSocket = useBoardStore((s) => s.initSocket);
+  const setActiveView = useBoardStore((s) => s.setActiveView);
   const loading = useBoardStore((s) => s.loading);
   const columns = useBoardStore((s) => s.columns);
   const activeView = useBoardStore((s) => s.activeView);
@@ -31,7 +35,12 @@ export default function BoardWorkspace({ boardId, taskId }: BoardWorkspaceProps)
     const isDark = saved !== null ? saved === "true" : true;
     document.documentElement.classList.toggle("dark", isDark);
     if (!isDark) useBoardStore.setState({ darkMode: false });
-  }, []);
+
+    const savedView = localStorage.getItem(VIEW_STORAGE_KEY);
+    if (savedView && isBoardView(savedView)) {
+      setActiveView(savedView);
+    }
+  }, [setActiveView]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,21 +104,41 @@ export default function BoardWorkspace({ boardId, taskId }: BoardWorkspaceProps)
     );
   }
 
-  return (
-    <AppShell boardId={boardId} taskId={taskId}>
-      {loading ? (
+  const showFilterBar =
+    activeView === "kanban" ||
+    activeView === "list" ||
+    activeView === "calendar";
+
+  const showStatsBar = activeView === "kanban";
+
+  function renderView() {
+    if (loading) {
+      return (
         <div className="flex-1 flex items-center justify-center">
           <LoadingSpinner label="Loading board..." />
         </div>
-      ) : activeView === "analytics" ? (
-        <AnalyticsDashboard />
-      ) : (
-        <>
-          <FilterBar />
-          <Board />
-          <StatsBar />
-        </>
-      )}
+      );
+    }
+
+    switch (activeView) {
+      case "list":
+        return <ListView />;
+      case "calendar":
+        return <CalendarView />;
+      case "analytics":
+        return <AnalyticsDashboard />;
+      default:
+        return <Board />;
+    }
+  }
+
+  return (
+    <AppShell boardId={boardId} taskId={taskId}>
+      {showFilterBar && <FilterBar />}
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        {renderView()}
+      </div>
+      {showStatsBar && !loading && <StatsBar />}
     </AppShell>
   );
 }
