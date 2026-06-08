@@ -166,7 +166,79 @@ export function sanitizeCardInput(input: Record<string, unknown>): Record<string
     }
   }
 
+  // dueDate: optional YYYY-MM-DD or cleared with null/empty string
+  if (sanitized.dueDate !== undefined) {
+    sanitized.dueDate = normalizeDueDate(sanitized.dueDate);
+  }
+
   return sanitized;
+}
+
+const DUE_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Normalize and validate card due dates (YYYY-MM-DD). */
+export function normalizeDueDate(value: unknown): string | null {
+  if (value === null || value === "") return null;
+  if (typeof value !== "string") {
+    throw new GraphQLError("Due date must be a string in YYYY-MM-DD format", {
+      extensions: { code: "BAD_USER_INPUT" },
+    });
+  }
+  if (value.length > 10) {
+    throw new GraphQLError("Due date must be at most 10 characters", {
+      extensions: { code: "BAD_USER_INPUT" },
+    });
+  }
+  if (!DUE_DATE_PATTERN.test(value)) {
+    throw new GraphQLError("Due date must be in YYYY-MM-DD format", {
+      extensions: { code: "BAD_USER_INPUT" },
+    });
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
+  ) {
+    throw new GraphQLError("Due date is not a valid calendar date", {
+      extensions: { code: "BAD_USER_INPUT" },
+    });
+  }
+
+  return value;
+}
+
+/** Validate moveCard index against target column bounds. */
+export function validateMoveIndex(
+  newIndex: number,
+  targetCardCount: number,
+  sameColumn: boolean
+): number {
+  if (!Number.isInteger(newIndex)) {
+    throw new GraphQLError("newIndex must be an integer", {
+      extensions: { code: "BAD_USER_INPUT" },
+    });
+  }
+  if (newIndex < 0) {
+    throw new GraphQLError("newIndex must be non-negative", {
+      extensions: { code: "BAD_USER_INPUT" },
+    });
+  }
+
+  const maxIndex = sameColumn
+    ? Math.max(0, targetCardCount - 1)
+    : targetCardCount;
+
+  if (newIndex > maxIndex) {
+    throw new GraphQLError(
+      `newIndex must be between 0 and ${maxIndex} for this column`,
+      { extensions: { code: "BAD_USER_INPUT" } }
+    );
+  }
+
+  return newIndex;
 }
 
 export function validateName(name: string, fieldName: string = "Name"): void {

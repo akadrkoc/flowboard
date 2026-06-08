@@ -7,6 +7,9 @@ import { resolvers } from "@/graphql/resolvers";
 import { getGraphQLValidationRules } from "@/graphql/validationRules";
 import { authOptions } from "@/lib/auth";
 import { rateLimit, sweepExpired } from "@/lib/rateLimit";
+import { validateEnv } from "@/lib/env";
+
+validateEnv();
 
 export interface GraphQLContext {
   userId: string | null;
