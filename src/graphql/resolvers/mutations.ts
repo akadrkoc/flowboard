@@ -485,7 +485,9 @@ export const mutationResolvers = {
     const isOwner = board.ownerId.toString() === currentUserId;
     const isSelfRemove = currentUserId === targetUserId;
 
-    if (!isOwner && !isSelfRemove) {
+    if (isSelfRemove) {
+      await requireBoardMember(ctx, boardId);
+    } else if (!isOwner) {
       throw new GraphQLError("Only the board owner can remove members", {
         extensions: { code: "FORBIDDEN" },
       });

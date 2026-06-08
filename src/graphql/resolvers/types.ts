@@ -1,10 +1,19 @@
 import { Column } from "@/models/Column";
 import { Card } from "@/models/Card";
+import type { GraphQLContext } from "@/app/api/graphql/route";
+import { requireBoardMember } from "@/graphql/auth";
 
 export const typeResolvers = {
   Board: {
     id: (parent: { _id: string }) => parent._id.toString(),
-    columns: async (parent: { _id: string }) => {
+    columns: async (
+      parent: { _id: string },
+      _: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const boardId = parent._id.toString();
+      await requireBoardMember(ctx, boardId);
+
       const columns = await Column.find({ boardId: parent._id })
         .sort({ order: 1 })
         .lean();
@@ -14,7 +23,14 @@ export const typeResolvers = {
 
   Column: {
     id: (parent: { _id: string }) => parent._id.toString(),
-    cards: async (parent: { _id: string }) => {
+    cards: async (
+      parent: { _id: string; boardId: { toString(): string } },
+      _: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const boardId = parent.boardId.toString();
+      await requireBoardMember(ctx, boardId);
+
       const cards = await Card.find({ columnId: parent._id, deletedAt: null })
         .sort({ order: 1 })
         .lean();
