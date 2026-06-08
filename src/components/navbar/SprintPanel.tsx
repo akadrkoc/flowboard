@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Zap, Check, X } from "lucide-react";
 import { useBoardStore } from "@/store/boardStore";
+import { useIsBoardOwner } from "@/hooks/useIsBoardOwner";
 import { useClickOutside } from "@/hooks/useClickOutside";
 
 export default function SprintPanel() {
@@ -10,6 +11,7 @@ export default function SprintPanel() {
   const sprints = useBoardStore((s) => s.sprints);
   const createSprint = useBoardStore((s) => s.createSprint);
   const completeSprint = useBoardStore((s) => s.completeSprint);
+  const isOwner = useIsBoardOwner();
 
   const [open, setOpen] = useState(false);
   const [newSprintName, setNewSprintName] = useState("");
@@ -101,6 +103,7 @@ export default function SprintPanel() {
                     {new Date(activeSprint.endDate).toLocaleDateString()}
                   </p>
                 </div>
+                {isOwner && (
                 <button
                   onClick={handleCompleteSprint}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-violet-600 hover:bg-violet-500 text-xs font-medium text-white transition-colors flex-shrink-0"
@@ -108,10 +111,12 @@ export default function SprintPanel() {
                   <Check className="w-3.5 h-3.5" />
                   Complete
                 </button>
+                )}
               </div>
             </div>
           )}
 
+          {isOwner && (
           <div className="space-y-2.5 mb-4">
             <input
               value={newSprintName}
@@ -166,6 +171,19 @@ export default function SprintPanel() {
               <p className="text-xs text-red-500">{sprintError}</p>
             )}
           </div>
+          )}
+
+          {!isOwner && !activeSprint && sprints.length === 0 && (
+            <p className="text-xs text-muted-foreground mb-4">
+              Only the board owner can manage sprints.
+            </p>
+          )}
+
+          {activeSprint && !isOwner && (
+            <p className="text-xs text-muted-foreground mb-4">
+              Only the board owner can complete sprints.
+            </p>
+          )}
 
           {sprints.filter((s) => !s.isActive).length > 0 && (
             <div>

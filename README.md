@@ -77,7 +77,17 @@ npm run dev:next   # Next.js only — no WebSocket / server-authoritative real-t
 npm run build      # Production build
 npm run start      # Production server (Next.js + Socket.io)
 npm run lint       # Run ESLint
+npm test           # Run security and validation unit tests
 ```
+
+## Roles
+
+| Action | Owner | Member |
+|--------|-------|--------|
+| Cards, comments, subtasks | Yes | Yes |
+| Add/rename/delete columns | Yes | No |
+| Invite/remove members | Yes | Self-remove only |
+| Create/complete sprints | Yes | No |
 
 ## Project Structure
 
@@ -110,6 +120,8 @@ src/
 All GraphQL queries and mutations require authentication. Board data is scoped to members only — users can only access boards they own or have been invited to. Input validation is enforced on all user-submitted data (including due dates and card move indices). Socket.io connections are authenticated via JWT and board membership is verified before joining rooms. Real-time updates are broadcast server-side only after successful GraphQL mutations (`npm run dev` or `npm start`).
 
 Response headers include Content-Security-Policy, HSTS, and related hardening headers. JWT sessions expire after `SESSION_MAX_AGE_SECONDS` (default 7 days) and are re-validated against the database on each request.
+
+Board structure changes (columns, sprints, membership) are restricted to the board owner. Sensitive owner actions are recorded in the `AuditLog` collection. Run `npm test` for auth and validation regression checks.
 
 ## License
 

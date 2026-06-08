@@ -43,6 +43,7 @@ export type { BoardState } from "./boardTypes";
 
 export const useBoardStore = create<BoardState>((set, get) => ({
   boardId: null,
+  boardOwnerId: null,
   boards: [],
   columns: [],
   loading: false,
@@ -143,6 +144,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       if (data.board) {
         set({
           boardId,
+          boardOwnerId: data.board.ownerId ?? null,
           columns: mapApiColumns(data.board.columns),
         });
       }
@@ -693,6 +695,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
     set({
       loading: true,
+      boardOwnerId: null,
       columns: [],
       members: [],
       sprints: [],

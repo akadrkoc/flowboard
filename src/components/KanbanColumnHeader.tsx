@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import type { Column } from "@/types/board";
 import { useBoardStore } from "@/store/boardStore";
+import { useIsBoardOwner } from "@/hooks/useIsBoardOwner";
 import { getColumnStatusStyle } from "@/lib/columnColors";
 import { MoreHorizontal, Trash2 } from "lucide-react";
 
@@ -18,6 +19,7 @@ export default function KanbanColumnHeader({
   const renameColumn = useBoardStore((s) => s.renameColumn);
   const deleteColumn = useBoardStore((s) => s.deleteColumn);
   const columnsCount = useBoardStore((s) => s.columns.length);
+  const isOwner = useIsBoardOwner();
 
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(column.title);
@@ -80,8 +82,11 @@ export default function KanbanColumnHeader({
           />
         ) : (
           <h2
-            className="flex-1 text-sm font-semibold tracking-tight cursor-pointer truncate"
+            className={`flex-1 text-sm font-semibold tracking-tight truncate ${
+              isOwner ? "cursor-pointer" : ""
+            }`}
             onDoubleClick={() => {
+              if (!isOwner) return;
               setEditName(column.title);
               setEditing(true);
             }}
@@ -93,6 +98,7 @@ export default function KanbanColumnHeader({
           {column.cards.length}
         </span>
 
+        {isOwner && (
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen(!menuOpen)}
@@ -129,6 +135,7 @@ export default function KanbanColumnHeader({
             </div>
           )}
         </div>
+        )}
     </div>
   );
 }

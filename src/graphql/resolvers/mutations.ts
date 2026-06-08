@@ -21,6 +21,14 @@ import {
 import { applyAssigneeInput } from "@/graphql/assigneeInput";
 import { getActorFromUserId, logActivity } from "@/graphql/activityLog";
 import {
+  assertRemoveMemberAllowed,
+  isBoardMemberUser,
+} from "@/graphql/memberAuth";
+import {
+  AUDIT_ACTIONS,
+  logSecurityEvent,
+} from "@/graphql/securityAudit";
+import {
   broadcastCardCreated,
   broadcastCardDeleted,
   broadcastCardMoved,
@@ -374,7 +382,7 @@ export const mutationResolvers = {
     { boardId, name }: { boardId: string; name: string },
     ctx: GraphQLContext
   ) => {
-    await requireBoardMember(ctx, boardId);
+    const userId = await requireBoardOwner(ctx, boardId);
     validateName(name, "Column name");
     await connectDB();
 
@@ -399,6 +407,15 @@ export const mutationResolvers = {
 
     broadcastColumnAdded(boardId, column._id.toString(), column.name);
 
+    await logSecurityEvent({
+      boardId,
+      actorId: userId,
+      action: AUDIT_ACTIONS.COLUMN_ADDED,
+      targetType: "column",
+      targetId: column._id.toString(),
+      details: column.name,
+    });
+
     return column;
   },
 
@@ -407,7 +424,6 @@ export const mutationResolvers = {
     { columnId, name }: { columnId: string; name: string },
     ctx: GraphQLContext
   ) => {
-    requireAuth(ctx);
     validateName(name, "Column name");
     await connectDB();
 
@@ -417,7 +433,7 @@ export const mutationResolvers = {
         extensions: { code: "NOT_FOUND" },
       });
 
-    await requireBoardMember(ctx, col.boardId.toString());
+    const userId = await requireBoardOwner(ctx, col.boardId.toString());
 
     const column = await Column.findByIdAndUpdate(
       columnId,
@@ -431,6 +447,15 @@ export const mutationResolvers = {
       (column as { name: string }).name
     );
 
+    await logSecurityEvent({
+      boardId: col.boardId.toString(),
+      actorId: userId,
+      action: AUDIT_ACTIONS.COLUMN_RENAMED,
+      targetType: "column",
+      targetId: columnId,
+      details: (column as { name: string }).name,
+    });
+
     return column;
   },
 
@@ -439,7 +464,6 @@ export const mutationResolvers = {
     { columnId }: { columnId: string },
     ctx: GraphQLContext
   ) => {
-    requireAuth(ctx);
     await connectDB();
 
     const column = await Column.findById(columnId);
@@ -448,7 +472,8 @@ export const mutationResolvers = {
         extensions: { code: "NOT_FOUND" },
       });
 
-    await requireBoardOwner(ctx, column.boardId.toString());
+    const userId = await requireBoardOwner(ctx, column.boardId.toString());
+    const columnName = column.name;
 
     const firstColumn = await Column.findOne({
       boardId: column.boardId,
@@ -485,6 +510,15 @@ export const mutationResolvers = {
 
     broadcastColumnDeleted(column.boardId.toString(), columnId);
 
+    await logSecurityEvent({
+      boardId: column.boardId.toString(),
+      actorId: userId,
+      action: AUDIT_ACTIONS.COLUMN_DELETED,
+      targetType: "column",
+      targetId: columnId,
+      details: columnName,
+    });
+
     return true;
   },
 
@@ -493,7 +527,7 @@ export const mutationResolvers = {
     { boardId, email }: { boardId: string; email: string },
     ctx: GraphQLContext
   ) => {
-    await requireBoardOwner(ctx, boardId);
+    const actorId = await requireBoardOwner(ctx, boardId);
     validateEmail(email);
     await connectDB();
 
@@ -522,6 +556,15 @@ export const mutationResolvers = {
       await board.save();
     }
 
+    await logSecurityEvent({
+      boardId,
+      actorId,
+      action: AUDIT_ACTIONS.MEMBER_INVITED,
+      targetType: "user",
+      targetId: userId,
+      details: normalizedEmail,
+    });
+
     return board;
   },
 
@@ -539,27 +582,35 @@ export const mutationResolvers = {
         extensions: { code: "NOT_FOUND" },
       });
 
-    const isOwner = board.ownerId.toString() === currentUserId;
-    const isSelfRemove = currentUserId === targetUserId;
+    const ownerId = board.ownerId.toString();
+    const memberIds = board.memberIds.map((id: { toString(): string }) =>
+      id.toString()
+    );
 
-    if (isSelfRemove) {
-      await requireBoardMember(ctx, boardId);
-    } else if (!isOwner) {
-      throw new GraphQLError("Only the board owner can remove members", {
-        extensions: { code: "FORBIDDEN" },
-      });
-    }
-
-    if (board.ownerId.toString() === targetUserId) {
-      throw new GraphQLError("Cannot remove the board owner", {
-        extensions: { code: "FORBIDDEN" },
-      });
-    }
+    assertRemoveMemberAllowed({
+      currentUserId,
+      targetUserId,
+      ownerId,
+      isCurrentUserMember: isBoardMemberUser(
+        currentUserId,
+        ownerId,
+        memberIds
+      ),
+    });
 
     board.memberIds = board.memberIds.filter(
       (id: { toString(): string }) => id.toString() !== targetUserId
     );
     await board.save();
+
+    await logSecurityEvent({
+      boardId,
+      actorId: currentUserId,
+      action: AUDIT_ACTIONS.MEMBER_REMOVED,
+      targetType: "user",
+      targetId: targetUserId,
+    });
+
     return board;
   },
 
@@ -578,7 +629,7 @@ export const mutationResolvers = {
     },
     ctx: GraphQLContext
   ) => {
-    await requireBoardMember(ctx, boardId);
+    const userId = await requireBoardOwner(ctx, boardId);
     validateName(name, "Sprint name");
     validateDateRange(startDate, endDate);
     await connectDB();
@@ -593,6 +644,15 @@ export const mutationResolvers = {
       isActive: true,
     });
 
+    await logSecurityEvent({
+      boardId,
+      actorId: userId,
+      action: AUDIT_ACTIONS.SPRINT_CREATED,
+      targetType: "sprint",
+      targetId: sprint._id.toString(),
+      details: sprint.name,
+    });
+
     return sprint;
   },
 
@@ -601,7 +661,6 @@ export const mutationResolvers = {
     { sprintId }: { sprintId: string },
     ctx: GraphQLContext
   ) => {
-    requireAuth(ctx);
     await connectDB();
 
     const sprint = await Sprint.findById(sprintId);
@@ -610,10 +669,19 @@ export const mutationResolvers = {
         extensions: { code: "NOT_FOUND" },
       });
 
-    await requireBoardMember(ctx, sprint.boardId.toString());
+    const userId = await requireBoardOwner(ctx, sprint.boardId.toString());
 
     sprint.isActive = false;
     await sprint.save();
+
+    await logSecurityEvent({
+      boardId: sprint.boardId.toString(),
+      actorId: userId,
+      action: AUDIT_ACTIONS.SPRINT_COMPLETED,
+      targetType: "sprint",
+      targetId: sprintId,
+      details: sprint.name,
+    });
 
     return sprint;
   },

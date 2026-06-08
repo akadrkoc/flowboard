@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Plus } from "lucide-react";
 import { useBoardStore } from "@/store/boardStore";
+import { useIsBoardOwner } from "@/hooks/useIsBoardOwner";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +14,7 @@ import {
 
 export default function AddColumnHeader() {
   const addColumn = useBoardStore((s) => s.addColumn);
+  const isOwner = useIsBoardOwner();
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
 
@@ -23,6 +25,8 @@ export default function AddColumnHeader() {
     setName("");
     setOpen(false);
   };
+
+  if (!isOwner) return null;
 
   return (
     <>
