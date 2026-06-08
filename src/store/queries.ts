@@ -15,6 +15,7 @@ export const GET_BOARD_QUERY = `
     board(id: $id) {
       id
       name
+      ownerId
       columns {
         id
         name

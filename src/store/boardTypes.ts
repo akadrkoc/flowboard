@@ -44,6 +44,7 @@ export interface SprintInfo {
 
 export interface BoardState {
   boardId: string | null;
+  boardOwnerId: string | null;
   boards: { id: string; name: string }[];
   loadBoards: () => Promise<{ id: string; name: string }[]>;
   createBoard: (name: string) => Promise<{ id: string; name: string }>;
