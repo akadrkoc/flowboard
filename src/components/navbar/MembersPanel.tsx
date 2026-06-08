@@ -26,8 +26,12 @@ export default function MembersPanel() {
     try {
       await inviteMember(inviteEmail.trim());
       setInviteEmail("");
-    } catch {
-      setInviteError("User not found");
+    } catch (err) {
+      setInviteError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Unable to invite user"
+      );
     }
   };
 

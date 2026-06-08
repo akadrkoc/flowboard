@@ -58,7 +58,9 @@ npm install
 cp .env.example .env.local
 ```
 
-Required variables: `MONGODB_URI`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, and at least one OAuth provider (`GITHUB_*` or `GOOGLE_*`). Optional: `PORT` (default `3000`), `GRAPHQL_RATE_LIMIT` (default `120` requests/min).
+Required variables: `MONGODB_URI`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, and at least one OAuth provider (`GITHUB_*` or `GOOGLE_*`).
+
+Optional: `PORT` (default `3000`), `GRAPHQL_RATE_LIMIT` (default `120` requests/min), `GRAPHQL_MAX_DEPTH` (default `10`), `SESSION_MAX_AGE_SECONDS` (default `604800` = 7 days).
 
 3. Start the development server:
 
@@ -66,13 +68,14 @@ Required variables: `MONGODB_URI`, `NEXTAUTH_URL`, `NEXTAUTH_SECRET`, and at lea
 npm run dev
 ```
 
-This starts both Next.js and the Socket.io server on port 3000.
+This starts both Next.js and the Socket.io server on port 3000. **Use this command for real-time collaboration** — mutations broadcast board updates through the custom server after GraphQL succeeds.
 
 ### Other Commands
 
 ```bash
-npm run dev:next   # Next.js only (no WebSocket support)
+npm run dev:next   # Next.js only — no WebSocket / server-authoritative real-time
 npm run build      # Production build
+npm run start      # Production server (Next.js + Socket.io)
 npm run lint       # Run ESLint
 ```
 
@@ -104,7 +107,9 @@ src/
 
 ## Security
 
-All GraphQL queries and mutations require authentication. Board data is scoped to members only -- users can only access boards they own or have been invited to. Input validation is enforced on all user-submitted data. Socket.io connections are authenticated via JWT and board membership is verified before joining rooms.
+All GraphQL queries and mutations require authentication. Board data is scoped to members only — users can only access boards they own or have been invited to. Input validation is enforced on all user-submitted data (including due dates and card move indices). Socket.io connections are authenticated via JWT and board membership is verified before joining rooms. Real-time updates are broadcast server-side only after successful GraphQL mutations (`npm run dev` or `npm start`).
+
+Response headers include Content-Security-Policy, HSTS, and related hardening headers. JWT sessions expire after `SESSION_MAX_AGE_SECONDS` (default 7 days) and are re-validated against the database on each request.
 
 ## License
 

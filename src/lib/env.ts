@@ -37,4 +37,18 @@ export function validateEnv(): void {
       throw new Error("GRAPHQL_RATE_LIMIT must be a positive integer");
     }
   }
+
+  if (process.env.GRAPHQL_MAX_DEPTH) {
+    const depth = parseInt(process.env.GRAPHQL_MAX_DEPTH, 10);
+    if (Number.isNaN(depth) || depth < 1) {
+      throw new Error("GRAPHQL_MAX_DEPTH must be a positive integer");
+    }
+  }
+
+  if (process.env.SESSION_MAX_AGE_SECONDS) {
+    const maxAge = parseInt(process.env.SESSION_MAX_AGE_SECONDS, 10);
+    if (Number.isNaN(maxAge) || maxAge < 60) {
+      throw new Error("SESSION_MAX_AGE_SECONDS must be an integer >= 60");
+    }
+  }
 }

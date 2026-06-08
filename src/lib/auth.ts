@@ -4,6 +4,11 @@ import GoogleProvider from "next-auth/providers/google";
 import { connectDB } from "@/lib/mongodb";
 import { User } from "@/models/User";
 
+const SESSION_MAX_AGE = parseInt(
+  process.env.SESSION_MAX_AGE_SECONDS || "604800",
+  10
+);
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GitHubProvider({
@@ -17,6 +22,10 @@ export const authOptions: NextAuthOptions = {
   ],
   session: {
     strategy: "jwt",
+    maxAge: SESSION_MAX_AGE,
+  },
+  jwt: {
+    maxAge: SESSION_MAX_AGE,
   },
   pages: {
     signIn: "/login",
@@ -27,7 +36,6 @@ export const authOptions: NextAuthOptions = {
 
       await connectDB();
 
-      // Kullanıcıyı bul veya oluştur
       const existingUser = await User.findOne({ email: user.email });
       if (!existingUser) {
         await User.create({
@@ -42,13 +50,25 @@ export const authOptions: NextAuthOptions = {
     },
 
     async jwt({ token, user }) {
-      if (user) {
-        await connectDB();
-        const dbUser = await User.findOne({ email: user.email });
+      await connectDB();
+
+      if (user?.email) {
+        const dbUser = await User.findOne({ email: user.email }).lean();
         if (dbUser) {
-          token.userId = dbUser._id.toString();
+          token.userId = (
+            dbUser as { _id: { toString(): string } }
+          )._id.toString();
+        }
+        return token;
+      }
+
+      if (token.userId) {
+        const dbUser = await User.findById(token.userId as string).lean();
+        if (!dbUser) {
+          delete token.userId;
         }
       }
+
       return token;
     },
 

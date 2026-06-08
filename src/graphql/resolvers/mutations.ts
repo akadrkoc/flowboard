@@ -16,6 +16,7 @@ import {
   validateName,
   validateEmail,
   validateDateRange,
+  validateMoveIndex,
 } from "@/graphql/auth";
 import { applyAssigneeInput } from "@/graphql/assigneeInput";
 import { getActorFromUserId, logActivity } from "@/graphql/activityLog";
@@ -149,6 +150,16 @@ export const mutationResolvers = {
     const fromColumnId = card.columnId.toString();
     const isMovingColumns = fromColumnId !== toColumnId;
 
+    const targetCardCount = await Card.countDocuments({
+      columnId: toColumnId,
+      deletedAt: null,
+    });
+    const boundedIndex = validateMoveIndex(
+      newIndex,
+      targetCardCount,
+      !isMovingColumns
+    );
+
     if (isMovingColumns) {
       await Card.updateMany(
         { columnId: fromColumnId, order: { $gt: card.order } },
@@ -156,7 +167,7 @@ export const mutationResolvers = {
       );
 
       await Card.updateMany(
-        { columnId: toColumnId, order: { $gte: newIndex } },
+        { columnId: toColumnId, order: { $gte: boundedIndex } },
         { $inc: { order: 1 } }
       );
 
@@ -173,26 +184,26 @@ export const mutationResolvers = {
       }
     } else {
       const oldIndex = card.order;
-      if (oldIndex < newIndex) {
+      if (oldIndex < boundedIndex) {
         await Card.updateMany(
           {
             columnId: toColumnId,
-            order: { $gt: oldIndex, $lte: newIndex },
+            order: { $gt: oldIndex, $lte: boundedIndex },
           },
           { $inc: { order: -1 } }
         );
-      } else if (oldIndex > newIndex) {
+      } else if (oldIndex > boundedIndex) {
         await Card.updateMany(
           {
             columnId: toColumnId,
-            order: { $gte: newIndex, $lt: oldIndex },
+            order: { $gte: boundedIndex, $lt: oldIndex },
           },
           { $inc: { order: 1 } }
         );
       }
     }
 
-    card.order = newIndex;
+    card.order = boundedIndex;
     await card.save();
 
     if (isMovingColumns) {
@@ -212,7 +223,7 @@ export const mutationResolvers = {
       card.boardId.toString(),
       cardId,
       toColumnId,
-      newIndex
+      boundedIndex
     );
 
     return card;
@@ -486,17 +497,20 @@ export const mutationResolvers = {
     validateEmail(email);
     await connectDB();
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     const board = await Board.findById(boardId);
     if (!board)
       throw new GraphQLError("Board not found", {
         extensions: { code: "NOT_FOUND" },
       });
 
-    const user = await User.findOne({ email }).lean();
-    if (!user)
-      throw new GraphQLError("User not found with that email", {
-        extensions: { code: "NOT_FOUND" },
+    const user = await User.findOne({ email: normalizedEmail }).lean();
+    if (!user) {
+      throw new GraphQLError("Unable to invite user", {
+        extensions: { code: "BAD_USER_INPUT" },
       });
+    }
 
     const userId = (user as { _id: { toString(): string } })._id.toString();
     if (
