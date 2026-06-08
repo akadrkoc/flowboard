@@ -183,7 +183,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
           get().pushError(errMessage(err, "Failed to move card"));
         }
       );
-      getSocket().emit("card-moved", { boardId, cardId, toColumnId, newIndex });
     }
   },
 
@@ -214,8 +213,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         dueDate: cardData.dueDate || null,
         storyPoints: cardData.storyPoints,
         assigneeId: cardData.assigneeId ?? null,
-        assigneeInitials: cardData.assigneeInitials,
-        assigneeColor: cardData.assigneeColor,
       },
     })
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -231,18 +228,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
             ),
           })),
         }));
-        const { boardId } = get();
-        if (boardId) {
-          getSocket().emit("card-created", {
-            boardId,
-            card: {
-              ...cardData,
-              id: createdCard.id,
-              columnId,
-              order: createdCard.order,
-            },
-          });
-        }
       })
       .catch((err: unknown) => {
         console.error("Failed to create card:", err);
@@ -276,8 +261,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
       "dueDate",
       "storyPoints",
       "assigneeId",
-      "assigneeInitials",
-      "assigneeColor",
     ] as const;
     const input: Record<string, unknown> = {};
     for (const key of allowedKeys) {
@@ -294,11 +277,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         throw err;
       }
     );
-
-    const { boardId } = get();
-    if (boardId) {
-      getSocket().emit("card-updated", { boardId, cardId, updates: input });
-    }
 
     return mutation.then(() => undefined);
   },
@@ -327,15 +305,11 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         console.error("Failed to delete card:", err);
         get().pushError(errMessage(err, "Failed to delete card"));
       });
-      const { boardId } = get();
-      if (boardId) {
-        getSocket().emit("card-deleted", { boardId, cardId });
-      }
     }
   },
 
   restoreCard: () => {
-    const { lastDeletedCard, boardId } = get();
+    const { lastDeletedCard } = get();
     if (!lastDeletedCard) return;
 
     set((state) => ({
@@ -349,19 +323,12 @@ export const useBoardStore = create<BoardState>((set, get) => ({
 
     if (lastDeletedCard.id.startsWith("temp-")) return;
 
-    graphqlFetch(RESTORE_CARD_MUTATION, { cardId: lastDeletedCard.id })
-      .then(() => {
-        if (boardId) {
-          getSocket().emit("card-created", {
-            boardId,
-            card: lastDeletedCard,
-          });
-        }
-      })
-      .catch((err: unknown) => {
+    graphqlFetch(RESTORE_CARD_MUTATION, { cardId: lastDeletedCard.id }).catch(
+      (err: unknown) => {
         console.error("Failed to restore card:", err);
         get().pushError(errMessage(err, "Failed to restore card"));
-      });
+      }
+    );
   },
 
   dismissUndo: () => set({ lastDeletedCard: null }),
@@ -397,10 +364,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
           };
         });
         get().loadActivityFeed(cardId);
-        const { boardId } = get();
-        if (boardId) {
-          getSocket().emit("comment-added", { boardId, cardId, comment });
-        }
       })
       .catch((err: unknown) => {
         console.error("Failed to add comment:", err);
@@ -569,10 +532,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
             c.id === tempId ? { ...c, id: col.id } : c
           ),
         }));
-        getSocket().emit("column-added", {
-          boardId,
-          column: { id: col.id, title: name, cards: [] },
-        });
       })
       .catch((err: unknown) => {
         console.error("Failed to add column:", err);
@@ -596,10 +555,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         get().pushError(errMessage(err, "Failed to rename column"));
       }
     );
-    const { boardId } = get();
-    if (boardId) {
-      getSocket().emit("column-renamed", { boardId, columnId, name });
-    }
   },
 
   loadSprints: async () => {
@@ -660,7 +615,7 @@ export const useBoardStore = create<BoardState>((set, get) => ({
   },
 
   deleteColumn: (columnId) => {
-    const { boardId, columns } = get();
+    const { columns } = get();
     if (columns.length <= 1) return;
 
     set((state) => ({
@@ -673,9 +628,6 @@ export const useBoardStore = create<BoardState>((set, get) => ({
         get().pushError(errMessage(err, "Failed to delete column"));
       }
     );
-    if (boardId) {
-      getSocket().emit("column-deleted", { boardId, columnId });
-    }
   },
 
   toggleDarkMode: () =>

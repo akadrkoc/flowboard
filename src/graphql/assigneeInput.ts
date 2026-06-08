@@ -37,10 +37,13 @@ export async function applyAssigneeInput(
   input: Record<string, unknown>,
   boardId: string
 ): Promise<Record<string, unknown>> {
-  if (!("assigneeId" in input)) return input;
-
-  const raw = input.assigneeId;
   const next = { ...input };
+  delete next.assigneeInitials;
+  delete next.assigneeColor;
+
+  if (!("assigneeId" in input)) return next;
+
+  const raw = next.assigneeId;
 
   if (raw === null || raw === undefined || raw === "") {
     next.assigneeId = null;
