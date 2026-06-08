@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { typeDefs } from "@/graphql/typeDefs";
 import { resolvers } from "@/graphql/resolvers";
+import { getGraphQLValidationRules } from "@/graphql/validationRules";
 import { authOptions } from "@/lib/auth";
 import { rateLimit, sweepExpired } from "@/lib/rateLimit";
 
@@ -15,6 +16,7 @@ const server = new ApolloServer<GraphQLContext>({
   typeDefs,
   resolvers,
   includeStacktraceInErrorResponses: process.env.NODE_ENV !== "production",
+  validationRules: getGraphQLValidationRules(),
 });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

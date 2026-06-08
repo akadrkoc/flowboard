@@ -75,8 +75,6 @@ const CARD_INPUT_ALLOWED_FIELDS = [
   "dueDate",
   "storyPoints",
   "assigneeId",
-  "assigneeInitials",
-  "assigneeColor",
 ] as const;
 
 const VALID_PRIORITIES = ["high", "med", "low"];

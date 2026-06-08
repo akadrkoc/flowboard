@@ -19,6 +19,16 @@ import {
 } from "@/graphql/auth";
 import { applyAssigneeInput } from "@/graphql/assigneeInput";
 import { getActorFromUserId, logActivity } from "@/graphql/activityLog";
+import {
+  broadcastCardCreated,
+  broadcastCardDeleted,
+  broadcastCardMoved,
+  broadcastCardUpdated,
+  broadcastColumnAdded,
+  broadcastColumnDeleted,
+  broadcastColumnRenamed,
+  broadcastCommentAdded,
+} from "@/graphql/realtimeBroadcast";
 
 export const mutationResolvers = {
   createBoard: async (
@@ -95,6 +105,8 @@ export const mutationResolvers = {
       actorName: actor.actorName,
       actorImage: actor.actorImage,
     });
+
+    broadcastCardCreated(column.boardId.toString(), card);
 
     return card;
   },
@@ -196,6 +208,13 @@ export const mutationResolvers = {
       });
     }
 
+    broadcastCardMoved(
+      card.boardId.toString(),
+      cardId,
+      toColumnId,
+      newIndex
+    );
+
     return card;
   },
 
@@ -219,10 +238,12 @@ export const mutationResolvers = {
     await requireBoardMember(ctx, existingCard.boardId.toString());
     let sanitized = sanitizeCardInput(input);
     const boardId = existingCard.boardId.toString();
+    const hadAssigneeChange = "assigneeId" in sanitized;
+    const oldAssignee = existingCard.assigneeId?.toString() ?? null;
 
-    if ("assigneeId" in sanitized) {
-      const oldAssignee = existingCard.assigneeId?.toString() ?? null;
-      sanitized = await applyAssigneeInput(sanitized, boardId);
+    sanitized = await applyAssigneeInput(sanitized, boardId);
+
+    if (hadAssigneeChange) {
       const newAssignee =
         sanitized.assigneeId === null || sanitized.assigneeId === undefined
           ? null
@@ -256,9 +277,15 @@ export const mutationResolvers = {
       }
     }
 
+    if (Object.keys(sanitized).length === 0) {
+      return existingCard;
+    }
+
     const card = await Card.findByIdAndUpdate(cardId, sanitized, {
       new: true,
     }).lean();
+
+    broadcastCardUpdated(boardId, cardId, sanitized);
 
     return card;
   },
@@ -286,6 +313,8 @@ export const mutationResolvers = {
       { columnId: card.columnId, deletedAt: null, order: { $gt: card.order } },
       { $inc: { order: -1 } }
     );
+
+    broadcastCardDeleted(card.boardId.toString(), cardId);
 
     return true;
   },
@@ -324,6 +353,8 @@ export const mutationResolvers = {
     card.order = nextOrder;
     await card.save();
 
+    broadcastCardCreated(card.boardId.toString(), card);
+
     return card;
   },
 
@@ -355,6 +386,8 @@ export const mutationResolvers = {
     board.columnIds.push(column._id);
     await board.save();
 
+    broadcastColumnAdded(boardId, column._id.toString(), column.name);
+
     return column;
   },
 
@@ -380,6 +413,13 @@ export const mutationResolvers = {
       { name: name.trim() },
       { new: true }
     ).lean();
+
+    broadcastColumnRenamed(
+      col.boardId.toString(),
+      columnId,
+      (column as { name: string }).name
+    );
+
     return column;
   },
 
@@ -431,6 +471,9 @@ export const mutationResolvers = {
     });
 
     await Column.findByIdAndDelete(columnId);
+
+    broadcastColumnDeleted(column.boardId.toString(), columnId);
+
     return true;
   },
 
@@ -604,6 +647,9 @@ export const mutationResolvers = {
       authorName,
       authorImage,
     });
+
+    const boardId = (card as { boardId: { toString(): string } }).boardId.toString();
+    broadcastCommentAdded(boardId, cardId, comment);
 
     return comment;
   },
