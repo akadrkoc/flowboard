@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, type ReactNode } from "react";
-import Sidebar from "./Sidebar";
+import { Suspense, type ReactNode } from "react";
 import TopToolbar from "./TopToolbar";
 import TaskDetailPanel from "@/components/TaskDetailPanel";
 import UndoToast from "@/components/UndoToast";
@@ -16,36 +15,15 @@ interface AppShellProps {
 }
 
 export default function AppShell({ boardId, taskId, children }: AppShellProps) {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
-  useEffect(() => {
-    const saved = localStorage.getItem("flowboard-sidebar-collapsed");
-    if (saved === "true") setSidebarCollapsed(true);
-  }, []);
-
-  const toggleSidebar = () => {
-    setSidebarCollapsed((prev) => {
-      const next = !prev;
-      localStorage.setItem("flowboard-sidebar-collapsed", String(next));
-      return next;
-    });
-  };
-
   return (
-    <div className="flex h-screen bg-[#fbf6ef] dark:bg-[#16161e] text-gray-900 dark:text-white overflow-hidden">
-      <Sidebar
-        boardId={boardId}
-        collapsed={sidebarCollapsed}
-        onToggleCollapse={toggleSidebar}
-      />
+    <div className="flex flex-col h-screen bg-[#fbf6ef] dark:bg-[#16161e] text-gray-900 dark:text-white overflow-hidden">
+      <TopToolbar />
 
-      <div className="flex flex-col flex-1 min-w-0">
-        <TopToolbar boardId={boardId} />
-        <div className="flex flex-col flex-1 min-w-0 min-h-0">
-          {children}
-        </div>
-        {taskId && <TaskDetailPanel taskId={taskId} boardId={boardId} />}
+      <div className="flex flex-col flex-1 min-w-0 min-h-0">
+        {children}
       </div>
+
+      {taskId && <TaskDetailPanel taskId={taskId} boardId={boardId} />}
 
       <UndoToast />
       <ErrorToast />
